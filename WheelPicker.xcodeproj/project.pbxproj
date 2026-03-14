@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		49340CB97354420C56607C19 /* WheelPickerKit in Frameworks */ = {isa = PBXBuildFile; productRef = FE78CCC3F55E9D7D10AFB362 /* WheelPickerKit */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		A84BC6F02E4A8AA300B3B4FF /* WheelPicker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WheelPicker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -15,7 +19,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				.folder.md,
-				Helpers/.folder.md,
 			);
 			target = A84BC6EF2E4A8AA300B3B4FF /* WheelPicker */;
 		};
@@ -37,6 +40,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				49340CB97354420C56607C19 /* WheelPickerKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -79,6 +83,7 @@
 			);
 			name = WheelPicker;
 			packageProductDependencies = (
+				FE78CCC3F55E9D7D10AFB362 /* WheelPickerKit */,
 			);
 			productName = WheelPicker;
 			productReference = A84BC6F02E4A8AA300B3B4FF /* WheelPicker.app */;
@@ -108,6 +113,9 @@
 			);
 			mainGroup = A84BC6E72E4A8AA300B3B4FF;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				39B23C69695AA7851AF47FB4 /* XCLocalSwiftPackageReference "." */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A84BC6F12E4A8AA300B3B4FF /* Products */;
 			projectDirPath = "";
@@ -367,6 +375,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		39B23C69695AA7851AF47FB4 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		FE78CCC3F55E9D7D10AFB362 /* WheelPickerKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 39B23C69695AA7851AF47FB4 /* XCLocalSwiftPackageReference "." */;
+			productName = WheelPickerKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A84BC6E82E4A8AA300B3B4FF /* Project object */;
 }

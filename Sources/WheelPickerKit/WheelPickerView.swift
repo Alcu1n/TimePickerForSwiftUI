@@ -1,10 +1,17 @@
-// [IN]: SwiftUI, dedicated wheel haptics controller, discrete picker values, and premium wheel config / SwiftUI、专用滚轮震动控制器、离散选择值与高级滚轮配置
-// [OUT]: Reusable wheel picker with gradient ticks and haptics / 带渐变刻度与震动反馈的可复用滚轮选择器
-// [POS]: Render arc-backed wheel interaction with per-tick feedback / 渲染带弧形背景与逐刻度反馈的滚轮交互
+// [IN]: SwiftUI, platform color interpolation, package haptic service, and discrete wheel config / SwiftUI、平台颜色插值、包内触感服务与离散滚轮配置
+// [OUT]: Package-private wheel renderer with configurable gradients and stable feedback / 带可配置渐变与稳定反馈的包内滚轮渲染器
+// [POS]: Render the shipped picker's arc interaction while hiding implementation behind the public API / 为对外组件渲染圆弧交互，并将实现细节隐藏在公开 API 背后
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+private typealias PlatformColor = UIColor
+#elseif canImport(AppKit)
+import AppKit
+private typealias PlatformColor = NSColor
+#endif
 
 struct WheelPickerConfig {
     var activeTint: Color = .primary
@@ -17,12 +24,14 @@ struct WheelPickerConfig {
     )
     var backgroundLineWidth: CGFloat = 62
     var backgroundColor: Color = Color(hue: 0.37, saturation: 0.72, brightness: 0.92)
-    var tickHueRange: ClosedRange<Double> = 0.34...0.48
-    var tickSaturationRange: ClosedRange<Double> = 0.5...0.9
-    var tickBrightnessRange: ClosedRange<Double> = 0.66...0.98
-    var valueHueRange: ClosedRange<Double> = 0.35...0.48
-    var valueSaturationRange: ClosedRange<Double> = 0.4...0.82
-    var valueBrightnessRange: ClosedRange<Double> = 0.72...0.98
+    var tickGradient: Gradient = Gradient(colors: [
+        Color(hue: 0.62, saturation: 0.42, brightness: 0.88),
+        Color(hue: 0.92, saturation: 0.92, brightness: 1.0)
+    ])
+    var valueGradient: Gradient = Gradient(colors: [
+        Color(hue: 0.58, saturation: 0.34, brightness: 0.92),
+        Color(hue: 0.88, saturation: 0.82, brightness: 1.0)
+    ])
     var largeTickRatio: CGFloat = 0.65
     var smallTickRatio: CGFloat = 0.4
     var tickWidth: CGFloat = 3
@@ -34,21 +43,11 @@ struct WheelPickerConfig {
     var indicatorDotSize: CGFloat = 12
 
     func valueColor(for value: Int, within values: [Int]) -> Color {
-        color(
-            progress: progress(for: value, within: values),
-            hueRange: valueHueRange,
-            saturationRange: valueSaturationRange,
-            brightnessRange: valueBrightnessRange
-        )
+        color(progress: progress(for: value, within: values), gradient: valueGradient)
     }
 
     func tickColor(for value: Int, within values: [Int]) -> Color {
-        color(
-            progress: progress(for: value, within: values),
-            hueRange: tickHueRange,
-            saturationRange: tickSaturationRange,
-            brightnessRange: tickBrightnessRange
-        )
+        color(progress: progress(for: value, within: values), gradient: tickGradient)
     }
 
     private func progress(for value: Int, within values: [Int]) -> Double {
@@ -64,21 +63,59 @@ struct WheelPickerConfig {
         return Double(clamped - first) / Double(last - first)
     }
 
-    private func color(
-        progress: Double,
-        hueRange: ClosedRange<Double>,
-        saturationRange: ClosedRange<Double>,
-        brightnessRange: ClosedRange<Double>
-    ) -> Color {
-        Color(
-            hue: interpolate(in: hueRange, progress: progress),
-            saturation: interpolate(in: saturationRange, progress: progress),
-            brightness: interpolate(in: brightnessRange, progress: progress)
-        )
+    private func color(progress: Double, gradient: Gradient) -> Color {
+        let clampedProgress = min(max(progress, 0), 1)
+        let stops = normalizedStops(from: gradient)
+
+        guard let firstStop = stops.first else { return .white }
+        guard clampedProgress > firstStop.location else { return firstStop.color }
+
+        for index in 1..<stops.count {
+            let previousStop = stops[index - 1]
+            let currentStop = stops[index]
+
+            guard clampedProgress <= currentStop.location else { continue }
+
+            let denominator = max(currentStop.location - previousStop.location, .leastNonzeroMagnitude)
+            let segmentProgress = (clampedProgress - previousStop.location) / denominator
+            return mixedColor(from: previousStop.color, to: currentStop.color, progress: segmentProgress)
+        }
+
+        return stops.last?.color ?? firstStop.color
     }
 
-    private func interpolate(in range: ClosedRange<Double>, progress: Double) -> Double {
-        range.lowerBound + ((range.upperBound - range.lowerBound) * progress)
+    private func normalizedStops(from gradient: Gradient) -> [Gradient.Stop] {
+        let sortedStops = gradient.stops.sorted { $0.location < $1.location }
+
+        switch sortedStops.count {
+        case 0:
+            return [
+                .init(color: .white, location: 0),
+                .init(color: .white, location: 1)
+            ]
+        case 1:
+            let singleColor = sortedStops[0].color
+            return [
+                .init(color: singleColor, location: 0),
+                .init(color: singleColor, location: 1)
+            ]
+        default:
+            return sortedStops
+        }
+    }
+
+    private func mixedColor(from start: Color, to end: Color, progress: Double) -> Color {
+        let startComponents = PlatformColor(start).rgbaComponents
+        let endComponents = PlatformColor(end).rgbaComponents
+        let interpolation = CGFloat(progress)
+
+        return Color(
+            .sRGB,
+            red: Double(startComponents.red + ((endComponents.red - startComponents.red) * interpolation)),
+            green: Double(startComponents.green + ((endComponents.green - startComponents.green) * interpolation)),
+            blue: Double(startComponents.blue + ((endComponents.blue - startComponents.blue) * interpolation)),
+            opacity: Double(startComponents.alpha + ((endComponents.alpha - startComponents.alpha) * interpolation))
+        )
     }
 }
 
@@ -177,7 +214,7 @@ struct WheelPickerView<Label: View>: View {
             .shadow(color: config.backgroundColor.opacity(0.4), radius: 24, y: 16)
             .overlay {
                 WheelPath(size, radius: radius)
-                    .stroke(Color.white.opacity(0.12), style: config.strokeStyle)
+                    .stroke(config.inactiveTint, style: config.strokeStyle)
                     .blur(radius: 0.5)
             }
     }
@@ -282,6 +319,50 @@ struct WheelPickerView<Label: View>: View {
     }
 }
 
+private struct RGBAComponents {
+    let red: CGFloat
+    let green: CGFloat
+    let blue: CGFloat
+    let alpha: CGFloat
+}
+
+private extension PlatformColor {
+    var rgbaComponents: RGBAComponents {
+#if canImport(UIKit)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+
+        if getRed(&red, green: &green, blue: &blue, alpha: &alpha) {
+            return RGBAComponents(red: red, green: green, blue: blue, alpha: alpha)
+        }
+
+        let resolved = resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
+        resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        return RGBAComponents(red: red, green: green, blue: blue, alpha: alpha)
+#elseif canImport(AppKit)
+        let resolved = usingColorSpace(.deviceRGB) ?? self
+        return RGBAComponents(
+            red: resolved.redComponent,
+            green: resolved.greenComponent,
+            blue: resolved.blueComponent,
+            alpha: resolved.alphaComponent
+        )
+#endif
+    }
+}
+
 #Preview {
-    ContentView()
+    WheelPickerPreviewHarness()
+        .padding()
+        .background(Color.black)
+}
+
+private struct WheelPickerPreviewHarness: View {
+    @State private var selection = 30
+
+    var body: some View {
+        TimerWheelPicker(selection: $selection, range: 5...180, step: 1)
+    }
 }

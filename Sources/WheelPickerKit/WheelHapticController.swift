@@ -1,6 +1,6 @@
 // [IN]: Foundation timing and CoreHaptics engine lifecycle for synchronized feedback / Foundation 时间控制与用于同步反馈的 CoreHaptics 引擎生命周期
-// [OUT]: Reusable throttled per-tick haptic plus click-audio controller / 可复用的带节流逐刻度震动与点击音控制器
-// [POS]: Emit stable selection haptics and click audio through one dedicated engine / 通过单一专用引擎输出稳定的选择震动与点击音
+// [OUT]: Package-private throttled per-tick haptic plus click-audio controller / 包内使用的带节流逐刻度震动与点击音控制器
+// [POS]: Keep tactile feedback stable without leaking engine management into the public picker API / 保持触感反馈稳定，同时不把引擎管理泄漏到公开组件 API
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
 

@@ -1,50 +1,20 @@
-// [IN]: SwiftUI, timer picker styling, and size controls / SwiftUI、计时器选择器样式与尺寸控制
-// [OUT]: Premium timer picker demo screen with tuning panel / 带调节面板的高级质感计时器选择器示例界面
-// [POS]: Compose timer semantics, scaling, and presentation / 组合时间语义、缩放控制与高级视觉呈现
+// [IN]: SwiftUI, WheelPickerKit package product, and demo-side tuning state / SwiftUI、WheelPickerKit 包产品与示例侧调节状态
+// [OUT]: Premium demo screen showcasing the packaged timer wheel picker / 展示已打包计时器滚轮组件的高级示例界面
+// [POS]: Prove the app consumes the distributable picker package instead of embedding picker implementation / 证明应用通过可分发包而非内嵌实现消费选择器
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
 
 import SwiftUI
+import WheelPickerKit
 
 struct ContentView: View {
     @State private var selectedDuration: Int = 30
-    @State private var dialHeight: CGFloat = 214
-    @State private var ringThickness: CGFloat = 44
-    @State private var indicatorHeight: CGFloat = 28
-    @State private var dialScale: CGFloat = 0.86
-
-    private let timerValues = Array(5...180)
-
-    private var timerConfig: WheelPickerConfig {
-        WheelPickerConfig(
-            activeTint: Color.white,
-            inactiveTint: Color.white.opacity(0.18),
-            largeTickFrequency: 5,
-            strokeStyle: .init(lineWidth: ringThickness, lineCap: .round, lineJoin: .round),
-            backgroundLineWidth: ringThickness + 10,
-            backgroundColor: Color(hue: 0.37, saturation: 0.74, brightness: 0.94),
-            tickHueRange: 0.62...0.92,
-            tickSaturationRange: 0.42...0.92,
-            tickBrightnessRange: 0.88...1.0,
-            valueHueRange: 0.58...0.88,
-            valueSaturationRange: 0.34...0.82,
-            valueBrightnessRange: 0.92...1.0,
-            largeTickRatio: 0.68,
-            smallTickRatio: 0.32,
-            tickWidth: 3.3,
-            tickSlotWidth: 5.2,
-            gapBetweenTicks: -2.6,
-            height: dialHeight,
-            indicatorHeight: indicatorHeight,
-            indicatorWidth: 5,
-            indicatorDotSize: 10
-        )
-    }
+    @State private var pickerStyle = TimerWheelPickerStyle.premiumDemo
 
     var body: some View {
         ZStack {
             Color.black
-            .ignoresSafeArea()
+                .ignoresSafeArea()
 
             RadialGradient(
                 colors: [
@@ -61,15 +31,12 @@ struct ContentView: View {
             VStack(spacing: 28) {
                 headerView
 
-                WheelPickerView(values: timerValues, selectedValue: $selectedDuration, config: timerConfig) { currentValue, isScrolling in
-                    TimerValueLabel(
-                        minutes: currentValue,
-                        accent: timerConfig.valueColor(for: currentValue, within: timerValues),
-                        isScrolling: isScrolling
-                    )
-                }
-                .scaleEffect(dialScale, anchor: .center)
-                .frame(height: dialHeight * dialScale)
+                TimerWheelPicker(
+                    selection: $selectedDuration,
+                    range: 5...180,
+                    step: 1,
+                    style: pickerStyle
+                )
 
                 controlPanel
 
@@ -103,6 +70,7 @@ struct ContentView: View {
             infoChip(title: "Range", value: "05-180 min")
             infoChip(title: "Step", value: "1 min")
             infoChip(title: "Preset", value: "30 min")
+            infoChip(title: "Binding", value: "\(selectedDuration) min")
         }
         .padding(10)
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -110,7 +78,7 @@ struct ContentView: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.white.opacity(0.14), lineWidth: 1)
         }
-        .shadow(color: timerConfig.activeTint.opacity(0.12), radius: 24, y: 12)
+        .shadow(color: pickerStyle.colors.activeTint.opacity(0.12), radius: 24, y: 12)
     }
 
     private var controlPanel: some View {
@@ -119,24 +87,34 @@ struct ContentView: View {
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .foregroundStyle(Color.white.opacity(0.88))
 
-            controlRow(title: "Size", value: "\(Int(dialHeight))") {
-                Slider(value: $dialHeight, in: 180...240, step: 1)
-                    .tint(timerConfig.backgroundColor)
+            controlRow(title: "Size", value: "\(Int(pickerStyle.layout.dialHeight))") {
+                Slider(value: $pickerStyle.layout.dialHeight, in: 180...240, step: 1)
+                    .tint(pickerStyle.colors.ringBackground)
             }
 
-            controlRow(title: "Scale", value: String(format: "%.2fx", dialScale)) {
-                Slider(value: $dialScale, in: 0.72...1.0, step: 0.01)
-                    .tint(timerConfig.backgroundColor)
+            controlRow(title: "Scale", value: String(format: "%.2fx", pickerStyle.layout.dialScale)) {
+                Slider(value: $pickerStyle.layout.dialScale, in: 0.72...1.0, step: 0.01)
+                    .tint(pickerStyle.colors.ringBackground)
             }
 
-            controlRow(title: "Ring", value: "\(Int(ringThickness))") {
-                Slider(value: $ringThickness, in: 34...52, step: 1)
-                    .tint(timerConfig.backgroundColor)
+            controlRow(title: "Ring", value: "\(Int(pickerStyle.layout.ringThickness))") {
+                Slider(value: $pickerStyle.layout.ringThickness, in: 34...52, step: 1)
+                    .tint(pickerStyle.colors.ringBackground)
             }
 
-            controlRow(title: "Marker", value: "\(Int(indicatorHeight))") {
-                Slider(value: $indicatorHeight, in: 18...38, step: 1)
-                    .tint(timerConfig.backgroundColor)
+            controlRow(title: "Marker", value: "\(Int(pickerStyle.layout.indicatorHeight))") {
+                Slider(value: $pickerStyle.layout.indicatorHeight, in: 18...38, step: 1)
+                    .tint(pickerStyle.colors.ringBackground)
+            }
+
+            controlRow(title: "Value", value: "Custom") {
+                LinearGradient(gradient: pickerStyle.colors.valueGradient, startPoint: .leading, endPoint: .trailing)
+                    .frame(height: 10)
+                    .clipShape(Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                    }
             }
         }
         .padding(16)
@@ -162,36 +140,6 @@ struct ContentView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-}
-
-private struct TimerValueLabel: View {
-    let minutes: Int
-    let accent: Color
-    let isScrolling: Bool
-
-    var body: some View {
-        VStack(spacing: 8) {
-            Text(String(minutes))
-                .font(.system(size: 58, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(accent)
-                .contentTransition(.numericText())
-                .animation(.snappy(duration: 0.22), value: minutes)
-                .scaleEffect(isScrolling ? 0.985 : 1)
-                .animation(.easeOut(duration: 0.12), value: isScrolling)
-                .shadow(color: accent.opacity(0.32), radius: 18, y: 10)
-
-            Text("MIN")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .tracking(1.6)
-                .foregroundStyle(Color.white.opacity(0.7))
-        }
-        .frame(maxHeight: .infinity)
-        .padding(.top, 26)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Timer")
-        .accessibilityValue("\(minutes) minutes")
     }
 }
 
