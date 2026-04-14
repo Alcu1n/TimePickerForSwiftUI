@@ -1,6 +1,6 @@
-// [IN]: SwiftUI, package-private wheel primitives, and timer-facing public-style configuration / SwiftUI、包内滚轮原语与面向计时器的 public 风格配置
-// [OUT]: Public timer wheel picker component exposing selection plus style entry points / 暴露选中值与样式入口的公开计时器滚轮组件
-// [POS]: Serve as the clean package API that app code imports for reuse / 作为应用侧导入复用的干净包 API
+// [IN]: SwiftUI, package-private full-bleed arc renderer, and timer-facing public style presets / SwiftUI、包内全宽圆弧渲染器与面向计时器的公开样式预设
+// [OUT]: Public timer wheel picker API exposing selection, initial selection fallback, readable style aliases, and immersive presets / 暴露选中值、初始默认值回退、易读样式别名与沉浸式预设的公开计时器选择器 API
+// [POS]: Keep the shipped package surface small while letting consumers customize the arc, ticks, value text, caption, and initial selection safely / 保持包 API 精简，同时让接入方安全自定义圆弧、刻度、数字、底部文案与初始默认值
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
 
@@ -12,7 +12,13 @@ public struct TimerWheelPickerStyle {
         public var inactiveTint: Color
         public var ringBackground: Color
         public var tickGradient: Gradient
+        public var tickColor: Color?
         public var valueGradient: Gradient
+
+        public var guideArcTint: Color {
+            get { inactiveTint }
+            set { inactiveTint = newValue }
+        }
 
         public init(
             activeTint: Color = .white,
@@ -22,6 +28,7 @@ public struct TimerWheelPickerStyle {
                 Color(hue: 0.62, saturation: 0.42, brightness: 0.88),
                 Color(hue: 0.92, saturation: 0.92, brightness: 1.0)
             ]),
+            tickColor: Color? = nil,
             valueGradient: Gradient = Gradient(colors: [
                 Color(hue: 0.58, saturation: 0.34, brightness: 0.92),
                 Color(hue: 0.88, saturation: 0.82, brightness: 1.0)
@@ -31,11 +38,23 @@ public struct TimerWheelPickerStyle {
             self.inactiveTint = inactiveTint
             self.ringBackground = ringBackground
             self.tickGradient = tickGradient
+            self.tickColor = tickColor
             self.valueGradient = valueGradient
+        }
+
+        var resolvedTickGradient: Gradient {
+            guard let tickColor else { return tickGradient }
+            return Gradient(colors: [tickColor, tickColor])
         }
     }
 
     public struct Layout {
+        public enum ArcProfile: Sendable {
+            case classic
+            case fullWidthShallow
+        }
+
+        public var arcProfile: ArcProfile
         public var dialHeight: CGFloat
         public var dialScale: CGFloat
         public var ringThickness: CGFloat
@@ -51,6 +70,7 @@ public struct TimerWheelPickerStyle {
         public var smallTickRatio: CGFloat
 
         public init(
+            arcProfile: ArcProfile = .classic,
             dialHeight: CGFloat = 214,
             dialScale: CGFloat = 0.86,
             ringThickness: CGFloat = 44,
@@ -65,6 +85,7 @@ public struct TimerWheelPickerStyle {
             largeTickRatio: CGFloat = 0.68,
             smallTickRatio: CGFloat = 0.32
         ) {
+            self.arcProfile = arcProfile
             self.dialHeight = dialHeight
             self.dialScale = dialScale
             self.ringThickness = ringThickness
@@ -85,6 +106,11 @@ public struct TimerWheelPickerStyle {
         public var valueFontSize: CGFloat
         public var unitFontSize: CGFloat
         public var unitLabel: String
+
+        public var captionText: String {
+            get { unitLabel }
+            set { unitLabel = newValue }
+        }
 
         public init(
             valueFontSize: CGFloat = 58,
@@ -115,15 +141,56 @@ public struct TimerWheelPickerStyle {
         Self()
     }
 
+    public static var immersiveArc: Self {
+        Self(
+            colors: .init(
+                activeTint: .white,
+                inactiveTint: Color.white.opacity(0.94),
+                ringBackground: Color.white.opacity(0.24),
+                tickGradient: Gradient(colors: [
+                    Color.white.opacity(0.88),
+                    Color.white
+                ]),
+                tickColor: .white,
+                valueGradient: Gradient(colors: [
+                    Color.white.opacity(0.92),
+                    Color.white
+                ])
+            ),
+            layout: .init(
+                arcProfile: .fullWidthShallow,
+                dialHeight: 346,
+                dialScale: 1,
+                ringThickness: 2,
+                ringBackgroundExtraWidth: 0.8,
+                indicatorHeight: 0,
+                indicatorWidth: 0,
+                indicatorDotSize: 16,
+                tickWidth: 1.6,
+                tickSlotWidth: 8,
+                gapBetweenTicks: 2,
+                largeTickFrequency: 10,
+                largeTickRatio: 0.9,
+                smallTickRatio: 0.52
+            ),
+            typography: .init(
+                valueFontSize: 108,
+                unitFontSize: 28,
+                unitLabel: "Relaxed"
+            )
+        )
+    }
+
     func makeWheelConfig() -> WheelPickerConfig {
         WheelPickerConfig(
             activeTint: colors.activeTint,
             inactiveTint: colors.inactiveTint,
+            arcProfile: layout.arcProfile,
             largeTickFrequency: layout.largeTickFrequency,
             strokeStyle: .init(lineWidth: layout.ringThickness, lineCap: .round, lineJoin: .round),
             backgroundLineWidth: layout.ringThickness + layout.ringBackgroundExtraWidth,
             backgroundColor: colors.ringBackground,
-            tickGradient: colors.tickGradient,
+            tickGradient: colors.resolvedTickGradient,
             valueGradient: colors.valueGradient,
             largeTickRatio: layout.largeTickRatio,
             smallTickRatio: layout.smallTickRatio,
@@ -141,6 +208,7 @@ public struct TimerWheelPickerStyle {
 public struct TimerWheelPicker: View {
     public let range: ClosedRange<Int>
     public let step: Int
+    public let initialSelection: Int
     public let style: TimerWheelPickerStyle
     @Binding private var selection: Int
 
@@ -149,14 +217,20 @@ public struct TimerWheelPicker: View {
         return Array(stride(from: range.lowerBound, through: range.upperBound, by: safeStep))
     }
 
+    private var resolvedInitialSelection: Int {
+        values.min(by: { abs($0 - initialSelection) < abs($1 - initialSelection) }) ?? initialSelection
+    }
+
     public init(
         selection: Binding<Int>,
         range: ClosedRange<Int> = 5...180,
         step: Int = 1,
+        initialSelection: Int = 30,
         style: TimerWheelPickerStyle = .premiumDemo
     ) {
         self.range = range
         self.step = step
+        self.initialSelection = initialSelection
         self.style = style
         self._selection = selection
     }
@@ -174,6 +248,10 @@ public struct TimerWheelPicker: View {
         }
         .scaleEffect(style.layout.dialScale, anchor: .center)
         .frame(height: style.layout.dialHeight * style.layout.dialScale)
+        .task {
+            guard !values.contains(selection) else { return }
+            selection = resolvedInitialSelection
+        }
     }
 }
 
@@ -183,8 +261,12 @@ private struct TimerWheelPickerLabel: View {
     let style: TimerWheelPickerStyle
     let isScrolling: Bool
 
+    private var isImmersiveArc: Bool {
+        style.layout.arcProfile == .fullWidthShallow
+    }
+
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: isImmersiveArc ? 6 : 8) {
             Text(String(minutes))
                 .font(.system(size: style.typography.valueFontSize, weight: .bold, design: .rounded))
                 .monospacedDigit()
@@ -193,17 +275,17 @@ private struct TimerWheelPickerLabel: View {
                 .animation(.snappy(duration: 0.22), value: minutes)
                 .scaleEffect(isScrolling ? 0.985 : 1)
                 .animation(.easeOut(duration: 0.12), value: isScrolling)
-                .shadow(color: accent.opacity(0.32), radius: 18, y: 10)
+                .shadow(color: accent.opacity(isImmersiveArc ? 0.1 : 0.32), radius: isImmersiveArc ? 8 : 18, y: isImmersiveArc ? 2 : 10)
 
             Text(style.typography.unitLabel)
-                .font(.system(size: style.typography.unitFontSize, weight: .bold, design: .rounded))
-                .tracking(1.6)
-                .foregroundStyle(Color.white.opacity(0.7))
+                .font(.system(size: style.typography.unitFontSize, weight: isImmersiveArc ? .medium : .bold, design: .rounded))
+                .tracking(isImmersiveArc ? 0 : 1.6)
+                .foregroundStyle(Color.white.opacity(isImmersiveArc ? 0.88 : 0.7))
         }
         .frame(maxHeight: .infinity)
-        .padding(.top, 26)
+        .padding(.top, isImmersiveArc ? 0 : 26)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Timer")
-        .accessibilityValue("\(minutes) minutes")
+        .accessibilityLabel("Selected value")
+        .accessibilityValue(style.typography.unitLabel.isEmpty ? "\(minutes)" : "\(minutes) \(style.typography.unitLabel)")
     }
 }

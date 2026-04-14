@@ -1,21 +1,25 @@
-// [IN]: SwiftUI, platform color interpolation, package haptic service, and discrete wheel config / SwiftUI、平台颜色插值、包内触感服务与离散滚轮配置
-// [OUT]: Package-private wheel renderer with configurable gradients and stable feedback / 带可配置渐变与稳定反馈的包内滚轮渲染器
-// [POS]: Render the shipped picker's arc interaction while hiding implementation behind the public API / 为对外组件渲染圆弧交互，并将实现细节隐藏在公开 API 背后
+// [IN]: SwiftUI, platform color interpolation, package haptic service, and full-bleed masked arc geometry / SwiftUI、平台颜色插值、包内触感服务与全宽遮罩圆弧几何
+// [OUT]: Package-private arc renderer with stable tick visibility, wider drag hit regions, and aggressively tightened value placement / 提供稳定刻度可见域、更宽拖动命中区与大幅收紧数值位置的包内圆弧渲染器
+// [POS]: Keep the guide arc, tick band, and value label locked to one centered full-width geometry with minimal dead air / 让导向弧、刻度带与数值标签锁定在同一条居中的全宽几何上，并尽量消灭空洞留白
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
 
 import SwiftUI
+
 #if canImport(UIKit)
-import UIKit
-private typealias PlatformColor = UIColor
+    import UIKit
+    private typealias PlatformColor = UIColor
 #elseif canImport(AppKit)
-import AppKit
-private typealias PlatformColor = NSColor
+    import AppKit
+    private typealias PlatformColor = NSColor
 #endif
+
+private let wheelPickerViewportCoordinateSpace = "WheelPickerViewport"
 
 struct WheelPickerConfig {
     var activeTint: Color = .primary
     var inactiveTint: Color = Color.gray.opacity(0.8)
+    var arcProfile: TimerWheelPickerStyle.Layout.ArcProfile = .classic
     var largeTickFrequency: Int = 10
     var strokeStyle: StrokeStyle = .init(
         lineWidth: 50,
@@ -26,11 +30,11 @@ struct WheelPickerConfig {
     var backgroundColor: Color = Color(hue: 0.37, saturation: 0.72, brightness: 0.92)
     var tickGradient: Gradient = Gradient(colors: [
         Color(hue: 0.62, saturation: 0.42, brightness: 0.88),
-        Color(hue: 0.92, saturation: 0.92, brightness: 1.0)
+        Color(hue: 0.92, saturation: 0.92, brightness: 1.0),
     ])
     var valueGradient: Gradient = Gradient(colors: [
         Color(hue: 0.58, saturation: 0.34, brightness: 0.92),
-        Color(hue: 0.88, saturation: 0.82, brightness: 1.0)
+        Color(hue: 0.88, saturation: 0.82, brightness: 1.0),
     ])
     var largeTickRatio: CGFloat = 0.65
     var smallTickRatio: CGFloat = 0.4
@@ -76,9 +80,11 @@ struct WheelPickerConfig {
 
             guard clampedProgress <= currentStop.location else { continue }
 
-            let denominator = max(currentStop.location - previousStop.location, .leastNonzeroMagnitude)
+            let denominator = max(
+                currentStop.location - previousStop.location, .leastNonzeroMagnitude)
             let segmentProgress = (clampedProgress - previousStop.location) / denominator
-            return mixedColor(from: previousStop.color, to: currentStop.color, progress: segmentProgress)
+            return mixedColor(
+                from: previousStop.color, to: currentStop.color, progress: segmentProgress)
         }
 
         return stops.last?.color ?? firstStop.color
@@ -91,13 +97,13 @@ struct WheelPickerConfig {
         case 0:
             return [
                 .init(color: .white, location: 0),
-                .init(color: .white, location: 1)
+                .init(color: .white, location: 1),
             ]
         case 1:
             let singleColor = sortedStops[0].color
             return [
                 .init(color: singleColor, location: 0),
-                .init(color: singleColor, location: 1)
+                .init(color: singleColor, location: 1),
             ]
         default:
             return sortedStops
@@ -111,11 +117,148 @@ struct WheelPickerConfig {
 
         return Color(
             .sRGB,
-            red: Double(startComponents.red + ((endComponents.red - startComponents.red) * interpolation)),
-            green: Double(startComponents.green + ((endComponents.green - startComponents.green) * interpolation)),
-            blue: Double(startComponents.blue + ((endComponents.blue - startComponents.blue) * interpolation)),
-            opacity: Double(startComponents.alpha + ((endComponents.alpha - startComponents.alpha) * interpolation))
+            red: Double(
+                startComponents.red + ((endComponents.red - startComponents.red) * interpolation)),
+            green: Double(
+                startComponents.green
+                    + ((endComponents.green - startComponents.green) * interpolation)),
+            blue: Double(
+                startComponents.blue + ((endComponents.blue - startComponents.blue) * interpolation)
+            ),
+            opacity: Double(
+                startComponents.alpha
+                    + ((endComponents.alpha - startComponents.alpha) * interpolation))
         )
+    }
+}
+
+private struct WheelArcGeometry {
+    let size: CGSize
+    let config: WheelPickerConfig
+    let chordWidth: CGFloat
+    let radius: CGFloat
+    let centerY: CGFloat
+    let topY: CGFloat
+    let labelTopY: CGFloat
+    let labelWidth: CGFloat
+
+    init(size: CGSize, config: WheelPickerConfig) {
+        self.size = size
+        self.config = config
+
+        switch config.arcProfile {
+        case .classic:
+            let strokeWidth = config.strokeStyle.lineWidth
+            let usableWidth = min(
+                size.width - strokeWidth, max((size.height - strokeWidth) * 2, strokeWidth * 2))
+            let resolvedChordWidth = max(usableWidth, config.tickSlotWidth * 6)
+            self.chordWidth = resolvedChordWidth
+            self.radius = resolvedChordWidth / 2
+            self.centerY = size.height - (strokeWidth / 2)
+            self.topY = centerY - radius
+            self.labelTopY = topY + (radius * 0.54)
+            self.labelWidth = min(radius * 1.06, size.width * 0.72)
+        case .fullWidthShallow:
+            let resolvedChordWidth = max(
+                size.width + max(config.tickWidth, config.strokeStyle.lineWidth) + 4,
+                config.tickSlotWidth * 12)
+            let sagitta = min(max(size.height * 0.18, 48), 74)
+            self.chordWidth = resolvedChordWidth
+            self.radius =
+                (sagitta / 2) + ((resolvedChordWidth * resolvedChordWidth) / (8 * sagitta))
+            self.topY = max(14, config.indicatorDotSize * 0.55)
+            self.centerY = topY + radius
+            self.labelTopY = topY + sagitta - 56
+            self.labelWidth = min(size.width * 0.88, 320)
+        }
+    }
+
+    var centerX: CGFloat { size.width / 2 }
+    var halfChord: CGFloat { chordWidth / 2 }
+    var labelHeight: CGFloat { max(size.height - labelTopY - 8, 0) }
+    var labelCenterY: CGFloat { labelTopY + (labelHeight / 2) }
+    var indicatorPoint: CGPoint { CGPoint(x: centerX, y: topY) }
+    private var tickFadeWidth: CGFloat { config.arcProfile == .fullWidthShallow ? 16 : 6 }
+
+    func y(forRelativeX relativeX: CGFloat) -> CGFloat {
+        let clampedX = min(max(relativeX, -halfChord), halfChord)
+        let offsetY = sqrt(max((radius * radius) - (clampedX * clampedX), 0))
+        return centerY - offsetY
+    }
+
+    func outwardUnitVector(forRelativeX relativeX: CGFloat) -> CGVector {
+        let pointX = min(max(relativeX, -halfChord), halfChord)
+        let pointY = y(forRelativeX: pointX)
+        let deltaX = pointX
+        let deltaY = pointY - centerY
+        let length = max(sqrt((deltaX * deltaX) + (deltaY * deltaY)), 0.001)
+        return CGVector(dx: deltaX / length, dy: deltaY / length)
+    }
+
+    func tickRotation(forRelativeX relativeX: CGFloat) -> Angle {
+        let vector = outwardUnitVector(forRelativeX: relativeX)
+        return Angle(radians: Double(atan2(vector.dy, vector.dx) - (.pi / 2)))
+    }
+
+    func tickLength(isLargeTick: Bool) -> CGFloat {
+        let ratio = isLargeTick ? config.largeTickRatio : config.smallTickRatio
+
+        switch config.arcProfile {
+        case .classic:
+            return config.strokeStyle.lineWidth * ratio
+        case .fullWidthShallow:
+            let baseLength = min(max(size.height * 0.06, 12), 18)
+            return max(baseLength * ratio, isLargeTick ? 10 : 5)
+        }
+    }
+
+    func tickOffset(isLargeTick: Bool) -> CGFloat {
+        switch config.arcProfile {
+        case .classic:
+            return (tickLength(isLargeTick: isLargeTick) / 2)
+                + (config.strokeStyle.lineWidth * 0.04)
+        case .fullWidthShallow:
+            return (tickLength(isLargeTick: isLargeTick) / 2) + (config.strokeStyle.lineWidth / 2)
+                + 12
+        }
+    }
+
+    func pointOnArc(relativeX: CGFloat, outwardOffset: CGFloat = 0) -> CGPoint {
+        let vector = outwardUnitVector(forRelativeX: relativeX)
+        return CGPoint(
+            x: centerX + relativeX + (vector.dx * outwardOffset),
+            y: y(forRelativeX: relativeX) + (vector.dy * outwardOffset)
+        )
+    }
+
+    func tickOpacity(forRelativeX relativeX: CGFloat) -> CGFloat {
+        let distanceFromCenter = abs(relativeX)
+        let fadeStart = max(halfChord - tickFadeWidth, 0)
+
+        guard distanceFromCenter < halfChord else { return 0 }
+        guard distanceFromCenter > fadeStart else { return 1 }
+
+        let remaining = halfChord - distanceFromCenter
+        return max(min(remaining / max(tickFadeWidth, 0.001), 1), 0)
+    }
+
+    func makeArcPath() -> Path {
+        var path = Path()
+        let samples = config.arcProfile == .fullWidthShallow ? 220 : 140
+
+        for index in 0...samples {
+            let progress = CGFloat(index) / CGFloat(samples)
+            let relativeX = (-halfChord) + (chordWidth * progress)
+            let point = CGPoint(x: centerX + relativeX, y: y(forRelativeX: relativeX))
+
+            if index == 0 {
+                path.move(to: point)
+            } else {
+                path.addLine(to: point)
+            }
+        }
+
+        return path
     }
 }
 
@@ -128,6 +271,10 @@ struct WheelPickerView<Label: View>: View {
     @State private var activePosition: Int?
     @State private var isScrolling = false
     @StateObject private var haptics = WheelHapticController()
+
+    private var displayValues: [Int] {
+        config.arcProfile == .fullWidthShallow ? values.reversed() : values
+    }
 
     init(
         values: [Int],
@@ -143,17 +290,24 @@ struct WheelPickerView<Label: View>: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let size = proxy.size
-            let width = size.width - config.strokeStyle.lineWidth
-            let diameter = min(max(width, size.height), width)
-            let radius = diameter / 2
+            let geometry = WheelArcGeometry(size: proxy.size, config: config)
+            let currentValue = activePosition ?? resolvedSelection(for: selectedValue)
 
-            ZStack {
-                backgroundArc(size: size, radius: radius)
-                wheelPickerScrollView(size: size, radius: radius)
+            ZStack(alignment: .top) {
+                backgroundArc(geometry: geometry)
+                    .allowsHitTesting(false)
+                wheelPickerScrollView(size: proxy.size, geometry: geometry)
+                selectionIndicator(geometry: geometry)
+                    .allowsHitTesting(false)
+                label(currentValue, isScrolling)
+                    .frame(
+                        maxWidth: geometry.labelWidth, maxHeight: geometry.labelHeight,
+                        alignment: .top
+                    )
+                    .position(x: geometry.centerX, y: geometry.labelCenterY)
+                    .allowsHitTesting(false)
             }
             .compositingGroup()
-            .offset(y: -config.strokeStyle.lineWidth / 2)
         }
         .frame(height: config.height)
         .task {
@@ -164,6 +318,7 @@ struct WheelPickerView<Label: View>: View {
         .onChange(of: activePosition) { oldValue, newValue in
             guard let newValue, selectedValue != newValue else { return }
             selectedValue = newValue
+
             if oldValue != nil, isScrolling {
                 haptics.playSelectionTick()
             }
@@ -201,8 +356,8 @@ struct WheelPickerView<Label: View>: View {
         }
     }
 
-    private func backgroundArc(size: CGSize, radius: CGFloat) -> some View {
-        WheelPath(size, radius: radius)
+    private func backgroundArc(geometry: WheelArcGeometry) -> some View {
+        geometry.makeArcPath()
             .stroke(
                 config.backgroundColor,
                 style: StrokeStyle(
@@ -211,25 +366,25 @@ struct WheelPickerView<Label: View>: View {
                     lineJoin: .round
                 )
             )
-            .shadow(color: config.backgroundColor.opacity(0.4), radius: 24, y: 16)
             .overlay {
-                WheelPath(size, radius: radius)
+                geometry.makeArcPath()
                     .stroke(config.inactiveTint, style: config.strokeStyle)
-                    .blur(radius: 0.5)
+                    .blur(radius: config.arcProfile == .classic ? 0.5 : 0)
             }
+            .shadow(
+                color: config.arcProfile == .fullWidthShallow
+                    ? Color.black.opacity(0.16) : config.backgroundColor.opacity(0.4),
+                radius: config.arcProfile == .fullWidthShallow ? 10 : 24,
+                y: config.arcProfile == .fullWidthShallow ? 2 : 16
+            )
     }
 
-    @ViewBuilder
-    private func wheelPickerScrollView(size: CGSize, radius: CGFloat) -> some View {
-        let wheelShape = WheelPath(size, radius: radius)
-            .strokedPath(config.strokeStyle)
-
+    private func wheelPickerScrollView(size: CGSize, geometry: WheelArcGeometry) -> some View {
         ScrollView(.horizontal) {
             LazyHStack(spacing: config.gapBetweenTicks) {
-                ForEach(values, id: \.self) { value in
-                    TickView(value, size: size, radius: radius)
+                ForEach(displayValues, id: \.self) { value in
+                    tickView(value, size: size, geometry: geometry)
                         .id(value)
-                        .frame(maxHeight: .infinity, alignment: .bottom)
                 }
             }
             .scrollTargetLayout()
@@ -239,78 +394,80 @@ struct WheelPickerView<Label: View>: View {
         .safeAreaPadding(.horizontal, max((size.width - config.tickSlotWidth) / 2, 0))
         .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
         .scrollPosition(id: $activePosition, anchor: .center)
-        .clipShape(wheelShape)
-        .contentShape(wheelShape)
-        .overlay(alignment: .bottom) {
-            let halfStrokeWidth = config.strokeStyle.lineWidth / 2
+        .coordinateSpace(name: wheelPickerViewportCoordinateSpace)
+        .background(Color.white.opacity(0.001))
+        .contentShape(Rectangle())
+    }
 
-            VStack(spacing: -5) {
-                Capsule()
-                    .fill(config.activeTint)
-                    .frame(width: config.indicatorWidth, height: config.indicatorHeight)
-
+    private func selectionIndicator(geometry: WheelArcGeometry) -> some View {
+        Group {
+            if config.arcProfile == .fullWidthShallow {
                 Circle()
                     .fill(config.activeTint)
                     .frame(width: config.indicatorDotSize, height: config.indicatorDotSize)
-            }
-            .shadow(color: config.activeTint.opacity(0.35), radius: 12, y: 6)
-            .offset(y: -radius + halfStrokeWidth + 2)
-        }
-        .overlay(alignment: .bottom) {
-            if radius > 0 {
-                label(activePosition ?? resolvedSelection(for: selectedValue), isScrolling)
-                    .frame(
-                        maxWidth: radius,
-                        maxHeight: radius - (config.strokeStyle.lineWidth / 2)
-                    )
+                    .shadow(color: Color.black.opacity(0.16), radius: 4, y: 2)
+                    .position(geometry.indicatorPoint)
+            } else {
+                VStack(spacing: -5) {
+                    Capsule()
+                        .fill(config.activeTint)
+                        .frame(width: config.indicatorWidth, height: config.indicatorHeight)
+
+                    Circle()
+                        .fill(config.activeTint)
+                        .frame(width: config.indicatorDotSize, height: config.indicatorDotSize)
+                }
+                .shadow(color: config.activeTint.opacity(0.35), radius: 12, y: 6)
+                .position(
+                    x: geometry.centerX,
+                    y: geometry.topY + (config.indicatorHeight / 2) + (config.indicatorDotSize / 2)
+                )
             }
         }
     }
 
     @ViewBuilder
-    private func TickView(_ value: Int, size: CGSize, radius: CGFloat) -> some View {
-        let strokeWidth = config.strokeStyle.lineWidth
-        let halfStrokeWidth = strokeWidth / 2
-        let isLargeTick = ((values.firstIndex(of: value) ?? 0) % config.largeTickFrequency) == 0
+    private func tickView(_ value: Int, size: CGSize, geometry: WheelArcGeometry) -> some View {
+        let tickIndex = displayValues.firstIndex(of: value) ?? 0
+        let isLargeTick = (tickIndex % max(config.largeTickFrequency, 1)) == 0
         let tickColor = config.tickColor(for: value, within: values)
+        let tickLength = geometry.tickLength(isLargeTick: isLargeTick)
 
         GeometryReader { proxy in
-            let minX = proxy.frame(in: .scrollView(axis: .horizontal)).minX
-            let midX = proxy.frame(in: .scrollView(axis: .horizontal)).midX
-            let halfWidth = size.width / 2
-            let progress = max(min(midX / halfWidth, 1), -1)
-            let rotation = Angle(degrees: progress * 180)
+            let frame = proxy.frame(in: .named(wheelPickerViewportCoordinateSpace))
+            let relativeX = frame.midX - (size.width / 2)
+            let vector = geometry.outwardUnitVector(forRelativeX: relativeX)
+            let arcPoint = geometry.pointOnArc(
+                relativeX: relativeX, outwardOffset: geometry.tickOffset(isLargeTick: isLargeTick))
+            let tickOpacity = geometry.tickOpacity(forRelativeX: relativeX)
 
             Capsule()
                 .fill(
                     LinearGradient(
                         colors: [
-                            tickColor.opacity(0.64),
-                            tickColor
+                            tickColor.opacity(config.arcProfile == .fullWidthShallow ? 0.72 : 0.64),
+                            tickColor,
                         ],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
-                .offset(y: -radius + halfStrokeWidth)
-                .rotationEffect(rotation, anchor: .bottom)
-                .offset(x: -minX)
-                .shadow(color: Color.black.opacity(0.34), radius: 4, y: 2)
+                .frame(width: config.tickWidth, height: tickLength)
+                .rotationEffect(geometry.tickRotation(forRelativeX: relativeX))
+                .position(
+                    x: (proxy.size.width / 2)
+                        + (vector.dx * geometry.tickOffset(isLargeTick: isLargeTick)),
+                    y: arcPoint.y
+                )
+                .opacity(tickOpacity)
+                .shadow(
+                    color: config.arcProfile == .fullWidthShallow
+                        ? Color.white.opacity(0.04) : Color.black.opacity(0.34),
+                    radius: config.arcProfile == .fullWidthShallow ? 0 : 4,
+                    y: config.arcProfile == .fullWidthShallow ? 0 : 2
+                )
         }
-        .frame(width: config.tickWidth, height: strokeWidth * (isLargeTick ? config.largeTickRatio : config.smallTickRatio))
-        .frame(width: config.tickSlotWidth, alignment: .leading)
-    }
-
-    private func WheelPath(_ size: CGSize, radius: CGFloat) -> Path {
-        Path { path in
-            path.addArc(
-                center: .init(x: size.width / 2, y: size.height),
-                radius: radius,
-                startAngle: .degrees(180),
-                endAngle: .degrees(0),
-                clockwise: false
-            )
-        }
+        .frame(width: config.tickSlotWidth, height: size.height)
     }
 
     private func resolvedSelection(for value: Int) -> Int {
@@ -326,30 +483,30 @@ private struct RGBAComponents {
     let alpha: CGFloat
 }
 
-private extension PlatformColor {
-    var rgbaComponents: RGBAComponents {
-#if canImport(UIKit)
-        var red: CGFloat = 0
-        var green: CGFloat = 0
-        var blue: CGFloat = 0
-        var alpha: CGFloat = 0
+extension PlatformColor {
+    fileprivate var rgbaComponents: RGBAComponents {
+        #if canImport(UIKit)
+            var red: CGFloat = 0
+            var green: CGFloat = 0
+            var blue: CGFloat = 0
+            var alpha: CGFloat = 0
 
-        if getRed(&red, green: &green, blue: &blue, alpha: &alpha) {
+            if getRed(&red, green: &green, blue: &blue, alpha: &alpha) {
+                return RGBAComponents(red: red, green: green, blue: blue, alpha: alpha)
+            }
+
+            let resolved = resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
+            resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
             return RGBAComponents(red: red, green: green, blue: blue, alpha: alpha)
-        }
-
-        let resolved = resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
-        resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-        return RGBAComponents(red: red, green: green, blue: blue, alpha: alpha)
-#elseif canImport(AppKit)
-        let resolved = usingColorSpace(.deviceRGB) ?? self
-        return RGBAComponents(
-            red: resolved.redComponent,
-            green: resolved.greenComponent,
-            blue: resolved.blueComponent,
-            alpha: resolved.alphaComponent
-        )
-#endif
+        #elseif canImport(AppKit)
+            let resolved = usingColorSpace(.deviceRGB) ?? self
+            return RGBAComponents(
+                red: resolved.redComponent,
+                green: resolved.greenComponent,
+                blue: resolved.blueComponent,
+                alpha: resolved.alphaComponent
+            )
+        #endif
     }
 }
 
@@ -360,9 +517,9 @@ private extension PlatformColor {
 }
 
 private struct WheelPickerPreviewHarness: View {
-    @State private var selection = 30
+    @State private var selection = 78
 
     var body: some View {
-        TimerWheelPicker(selection: $selection, range: 5...180, step: 1)
+        TimerWheelPicker(selection: $selection, range: 5...180, step: 1, style: .immersiveArc)
     }
 }
