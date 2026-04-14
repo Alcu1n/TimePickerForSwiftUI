@@ -3,27 +3,35 @@
 Premium SwiftUI wheel picker shipped as a Swift Package, with a separate immersive demo app for visual verification.  
 一个以 Swift Package 形式分发、并附带独立沉浸式示例应用用于视觉验证的高质感 SwiftUI 滚轮选择器。
 
-## What The Package Actually Ships
+## What This Package Ships
 
-The `WheelPickerKit` library product exports a clean picker component only:
+`WheelPickerKit` exports only the reusable picker surface:
 - `TimerWheelPicker`
 - `TimerWheelPickerStyle`
 
-It does **not** ship the demo app's warm background shell, page composition, or any future button chrome.  
-`WheelPickerKit` 包产品只导出干净的 picker 组件本体：
+It does not ship the demo app's background shell, screen layout, or any app-only buttons.  
+`WheelPickerKit` 只导出可复用的选择器表面：
 - `TimerWheelPicker`
 - `TimerWheelPickerStyle`
 
-它**不包含**示例应用中的暖色背景外壳、页面构图或未来可能加入的按钮装饰层。
+它不包含示例应用里的背景外壳、页面布局或任何应用专属按钮。
+
+## Requirements
+
+- iOS 18.0+
+- macOS 15.0+ for package builds and tests
+- Xcode 16+
+- Swift 6 toolchain
 
 ## Installation
 
 ### Xcode
+
 1. Open your app project in Xcode.
 2. Go to `File > Add Package Dependencies...`.
-3. Paste your GitHub repository URL.
-4. Select the version rule you want.
-5. Add the `WheelPickerKit` product to your target.
+3. Paste your repository URL.
+4. Choose a version rule.
+5. Add the `WheelPickerKit` product to your app target.
 
 ### Package.swift
 
@@ -41,13 +49,6 @@ targets: [
 ]
 ```
 
-## Requirements
-
-- iOS 18.0+
-- macOS 15.0+ for package builds and tests
-- Xcode 16+
-- Swift 6 toolchain
-
 ## Quick Start
 
 ```swift
@@ -62,15 +63,45 @@ struct FocusTimerView: View {
             selection: $minutes,
             range: 5...180,
             step: 1,
+            initialSelection: 30,
             style: .immersiveArc
         )
-        .padding()
-        .background(Color.black)
     }
 }
 ```
 
-## API Surface
+## Selection Output
+
+The picker writes its current value back through the `selection` binding. That means another app can read, display, persist, or react to the value with normal SwiftUI data flow.  
+这个组件会通过 `selection` 绑定把当前值回写出去。这意味着其他 app 可以用标准 SwiftUI 数据流直接读取、展示、持久化或监听这个值。
+
+```swift
+import SwiftUI
+import WheelPickerKit
+
+struct TimerHostView: View {
+    @State private var selectedMinutes = 0
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Current value: \(selectedMinutes)")
+
+            TimerWheelPicker(
+                selection: $selectedMinutes,
+                range: 5...180,
+                step: 1,
+                initialSelection: 30,
+                style: .immersiveArc
+            )
+        }
+        .onChange(of: selectedMinutes) { oldValue, newValue in
+            print("Wheel changed from \(oldValue) to \(newValue)")
+        }
+    }
+}
+```
+
+## Public API
 
 ### `TimerWheelPicker`
 
@@ -79,222 +110,285 @@ TimerWheelPicker(
     selection: Binding<Int>,
     range: ClosedRange<Int> = 5...180,
     step: Int = 1,
+    initialSelection: Int = 30,
     style: TimerWheelPickerStyle = .premiumDemo
 )
 ```
 
-- `selection`: Bound selected value. The current picker value is exposed here for the rest of your app. / 绑定的当前选中值。其他模块通过这里读取和写回 picker 数值。
+- `selection`: Bound selected value used for output and external control. / 绑定的当前选中值，用于组件输出和外部控制。
 - `range`: Inclusive value range. / 闭区间数值范围。
-- `step`: Tick step size. Each step maps to one discrete tick. / 刻度步进。每一步都对应一个离散刻度。
-- `style`: Visual and layout configuration. / 视觉与布局配置。
+- `step`: Tick step size. Each step maps to one discrete value. / 刻度步进。每一步都映射到一个离散值。
+- `initialSelection`: Fallback value used on first appearance when the bound selection is outside the valid stepped range; defaults to `30` and snaps to the nearest valid step. / 当绑定值在首次出现时不落在合法步进范围内，组件会使用这个回退初始值；默认是 `30`，并会吸附到最近的合法步进值。
+- `style`: Public visual configuration. / 公开视觉配置。
+
+### Initial Value Behavior
+
+There are now two intentional ways to control the first visible value:
+- Set your own `@State` before presenting the picker if your app already owns a valid starting value. / 如果宿主 app 已经持有一个合法起始值，直接在展示前设置自己的 `@State`。
+- Pass `initialSelection` when you want the picker to repair an invalid or unset binding on first appearance. / 如果你希望 picker 在首次显示时修正无效或未初始化的绑定值，则传入 `initialSelection`。
+
+Example:
+
+```swift
+import SwiftUI
+import WheelPickerKit
+
+struct DefaultValueExample: View {
+    @State private var selectedMinutes = 0
+
+    var body: some View {
+        TimerWheelPicker(
+            selection: $selectedMinutes,
+            range: 5...180,
+            step: 5,
+            initialSelection: 30,
+            style: .immersiveArc
+        )
+    }
+}
+```
+
+In this example, `selectedMinutes` starts at `0`, which is outside the valid stepped range. The picker will repair it to `30` on first appearance. If you pass `initialSelection: 33` with `step: 5`, it snaps to the nearest valid value.  
+在这个例子里，`selectedMinutes` 初始为 `0`，不在合法步进范围内，因此 picker 会在首次出现时把它修正为 `30`。如果你传入 `initialSelection: 33` 且 `step: 5`，它会吸附到最近的合法值。
 
 ### `TimerWheelPickerStyle`
 
-`TimerWheelPickerStyle` is split into three explicit groups instead of one giant mess:
+`TimerWheelPickerStyle` is intentionally split into three groups:
 - `colors`
 - `layout`
 - `typography`
 
-`TimerWheelPickerStyle` 被拆成三组显式配置，而不是一坨难看的大对象：
+`TimerWheelPickerStyle` 被明确拆成三组：
 - `colors`
 - `layout`
 - `typography`
 
 #### Presets
 
-- `.premiumDemo`: Keeps the original thicker arc treatment. / 保留原先更厚重的圆弧视觉。
-- `.immersiveArc`: Uses the new full-width shallow arc treatment that matches the bundled immersive demo. / 使用新的全宽浅弧视觉，并与仓库内置沉浸式示例保持一致。
+- `.premiumDemo`: Keeps the original thicker wheel treatment. / 保留原始更厚重的滚轮视觉。
+- `.immersiveArc`: Uses the full-width shallow arc treatment with tighter value placement and metallic ratchet feedback. / 使用全宽浅弧视觉，带更贴近弧线的数字布局和金属棘轮反馈。
 
-#### Colors
+## Customization API
+
+The following knobs are public and intended for app-level customization.  
+以下参数都已经是公开 API，设计目标就是让引入该组件的 app 进行高度定制。
+
+### 1. Tick Color
+
+Use `tickColor` when you want a single solid tick color.  
+如果你只想要单色刻度，请使用 `tickColor`。
+
+```swift
+let colors = TimerWheelPickerStyle.Colors(
+    tickColor: .white
+)
+```
+
+If you want a multi-stop tick look, use `tickGradient`.  
+如果你想要多段渐变刻度，则使用 `tickGradient`。
+
+```swift
+let colors = TimerWheelPickerStyle.Colors(
+    tickGradient: Gradient(colors: [.cyan, .blue, .indigo])
+)
+```
+
+### 2. Guide Arc Color
+
+Use `guideArcTint` to customize the visible arc line color.  
+使用 `guideArcTint` 自定义可见导向弧线颜色。
+
+```swift
+var colors = TimerWheelPickerStyle.Colors()
+colors.guideArcTint = Color.white.opacity(0.9)
+```
+
+`inactiveTint` is still available for compatibility; `guideArcTint` is just the readable alias.  
+`inactiveTint` 仍然保留以兼容旧写法；`guideArcTint` 只是更易懂的别名。
+
+### 3. Numeric Font Size
+
+Use `typography.valueFontSize` to control the large numeric text size.  
+使用 `typography.valueFontSize` 控制中间大数字字号。
+
+```swift
+let typography = TimerWheelPickerStyle.Typography(
+    valueFontSize: 96
+)
+```
+
+### 4. Bottom Caption Text
+
+Use `captionText` to customize the bottom text shown under the value.  
+使用 `captionText` 自定义显示在数值下方的底部文本。
+
+```swift
+var typography = TimerWheelPickerStyle.Typography()
+typography.captionText = "Relaxed"
+```
+
+`unitLabel` is still available for compatibility; `captionText` is the clearer alias because the text may be a mood label instead of a unit.  
+`unitLabel` 仍然保留以兼容旧写法；`captionText` 是更清晰的别名，因为这段文字可能是状态文案而不是单位。
+
+## Style Reference
+
+### `TimerWheelPickerStyle.Colors`
 
 ```swift
 TimerWheelPickerStyle.Colors(
     activeTint: .white,
-    inactiveTint: Color.white.opacity(0.12),
-    ringBackground: .green,
-    tickGradient: Gradient(colors: [.cyan, .blue, .purple]),
-    valueGradient: Gradient(colors: [.white, .mint])
+    inactiveTint: Color.white.opacity(0.18),
+    ringBackground: Color.white.opacity(0.24),
+    tickGradient: Gradient(colors: [.white.opacity(0.8), .white]),
+    tickColor: .white,
+    valueGradient: Gradient(colors: [.white.opacity(0.92), .white])
 )
 ```
 
-- `activeTint`: Marker color. / 中央取值指示器颜色。
-- `inactiveTint`: Subtle arc overlay color. / 圆弧弱化叠层颜色。
-- `ringBackground`: Outer ring background color. / 外围圆环背景色。
-- `tickGradient`: Tick colors across the wheel. / 刻度线沿滚轮分布的渐变色。
+- `activeTint`: Indicator dot color. / 顶部指示圆点颜色。
+- `inactiveTint`: Visible guide arc tint. / 可见导向弧线颜色。
+- `guideArcTint`: Readable alias of `inactiveTint`. / `inactiveTint` 的易读别名。
+- `ringBackground`: Background arc color behind the guide arc. / 导向弧后方背景弧颜色。
+- `tickGradient`: Gradient used by tick marks when `tickColor` is not set. / 未设置 `tickColor` 时刻度线使用的渐变。
+- `tickColor`: Solid tick color override for single-color ticks. / 单色刻度的直接覆盖色。
 - `valueGradient`: Numeric value color mapping. / 中央数值颜色映射。
 
-#### Layout
+### `TimerWheelPickerStyle.Layout`
 
 ```swift
 TimerWheelPickerStyle.Layout(
-    arcProfile: .classic,
-    dialHeight: 214,
-    dialScale: 0.86,
-    ringThickness: 44,
-    ringBackgroundExtraWidth: 10,
-    indicatorHeight: 28,
-    indicatorWidth: 5,
-    indicatorDotSize: 10,
-    tickWidth: 3.3,
-    tickSlotWidth: 5.2,
-    gapBetweenTicks: -2.6,
-    largeTickFrequency: 5,
-    largeTickRatio: 0.68,
-    smallTickRatio: 0.32
+    arcProfile: .fullWidthShallow,
+    dialHeight: 346,
+    dialScale: 1,
+    ringThickness: 2,
+    ringBackgroundExtraWidth: 0.8,
+    indicatorHeight: 0,
+    indicatorWidth: 0,
+    indicatorDotSize: 16,
+    tickWidth: 1.6,
+    tickSlotWidth: 8,
+    gapBetweenTicks: 2,
+    largeTickFrequency: 10,
+    largeTickRatio: 0.9,
+    smallTickRatio: 0.52
 )
 ```
 
-- `arcProfile`: Arc geometry profile. Use `.classic` for the legacy thick ring or `.fullWidthShallow` for the immersive full-width arc. / 圆弧几何轮廓。`.classic` 为旧版厚环，`.fullWidthShallow` 为沉浸式全宽浅弧。
-- `dialHeight`: Base wheel height before scaling. / 缩放前的基础高度。
-- `dialScale`: Overall wheel scale. / wheel 整体缩放比例。
-- `ringThickness`: Main ring thickness. / 主圆环厚度。
-- `ringBackgroundExtraWidth`: Extra width behind the main ring. / 圆环背景相对主圆环增加的厚度。
-- `indicatorHeight`: Marker capsule height. / 指示器胶囊高度。
-- `indicatorWidth`: Marker capsule width. / 指示器胶囊宽度。
-- `indicatorDotSize`: Marker dot size. / 指示器圆点大小。
+- `arcProfile`: `.classic` or `.fullWidthShallow`. / `.classic` 或 `.fullWidthShallow`。
+- `dialHeight`: Base wheel height. / wheel 基础高度。
+- `dialScale`: Overall scale factor. / 整体缩放比例。
+- `ringThickness`: Guide arc thickness. / 导向弧线厚度。
+- `ringBackgroundExtraWidth`: Extra width behind the guide arc. / 背景弧相对导向弧额外增加的厚度。
+- `indicatorHeight`: Capsule indicator height used by the classic profile. / 经典轮廓中胶囊指示器的高度。
+- `indicatorWidth`: Capsule indicator width used by the classic profile. / 经典轮廓中胶囊指示器的宽度。
+- `indicatorDotSize`: Indicator dot size. / 指示圆点大小。
 - `tickWidth`: Tick line width. / 刻度线宽度。
-- `tickSlotWidth`: Horizontal slot per tick. / 每个刻度占用的水平槽宽。
-- `gapBetweenTicks`: Tick spacing adjustment. / 刻度之间的间距修正。
-- `largeTickFrequency`: Frequency of major ticks. / 主刻度出现频率。
-- `largeTickRatio`: Height ratio for major ticks. / 主刻度高度比例。
-- `smallTickRatio`: Height ratio for minor ticks. / 次刻度高度比例。
+- `tickSlotWidth`: Horizontal space reserved per tick. / 每个刻度的水平槽宽。
+- `gapBetweenTicks`: Additional spacing adjustment between ticks. / 刻度之间的额外间距修正。
+- `largeTickFrequency`: Major tick frequency. / 主刻度频率。
+- `largeTickRatio`: Major tick height ratio. / 主刻度高度比例。
+- `smallTickRatio`: Minor tick height ratio. / 次刻度高度比例。
 
-#### Typography
+### `TimerWheelPickerStyle.Typography`
 
 ```swift
 TimerWheelPickerStyle.Typography(
-    valueFontSize: 58,
-    unitFontSize: 14,
-    unitLabel: "MIN"
+    valueFontSize: 108,
+    unitFontSize: 28,
+    unitLabel: "Relaxed"
 )
 ```
 
-- `valueFontSize`: Main numeric font size. / 数值字号。
-- `unitFontSize`: Caption font size shown below the value. / 数值下方说明文字的字号。
-- `unitLabel`: Caption shown below the value; this can be a unit or a mood label. / 数值下方显示的说明文字；它既可以是单位，也可以是状态标签。
+- `valueFontSize`: Large numeric text size. / 大数字字号。
+- `unitFontSize`: Bottom caption font size. / 底部文案字号。
+- `unitLabel`: Bottom caption text. / 底部文案文本。
+- `captionText`: Readable alias of `unitLabel`. / `unitLabel` 的易读别名。
 
-## Customization Example
+## Full Customization Example
 
 ```swift
 import SwiftUI
 import WheelPickerKit
 
-struct CustomTimerView: View {
-    @State private var duration = 45
+struct CustomWheelExample: View {
+    @State private var selectedValue = 0
 
-    private let style = TimerWheelPickerStyle(
-        colors: .init(
-            activeTint: .white,
-            inactiveTint: Color.white.opacity(0.10),
-            ringBackground: Color(hue: 0.36, saturation: 0.80, brightness: 0.94),
-            tickGradient: Gradient(colors: [.cyan, .blue, .indigo]),
-            valueGradient: Gradient(colors: [.white, .mint])
-        ),
-        layout: .init(
-            arcProfile: .fullWidthShallow,
-            dialHeight: 196,
-            dialScale: 1,
-            ringThickness: 4,
-            indicatorDotSize: 18,
-            tickWidth: 2
-        ),
-        typography: .init(
-            valueFontSize: 52,
-            unitFontSize: 12,
-            unitLabel: "Focus"
+    private var style: TimerWheelPickerStyle {
+        var colors = TimerWheelPickerStyle.Colors(
+            ringBackground: Color.white.opacity(0.18),
+            tickColor: .white,
+            valueGradient: Gradient(colors: [.white, .white.opacity(0.9)])
         )
-    )
+        colors.guideArcTint = Color.white.opacity(0.92)
+
+        var typography = TimerWheelPickerStyle.Typography(
+            valueFontSize: 92,
+            unitFontSize: 20,
+            unitLabel: "Relaxed"
+        )
+        typography.captionText = "Wind Up"
+
+        return TimerWheelPickerStyle(
+            colors: colors,
+            layout: .init(
+                arcProfile: .fullWidthShallow,
+                dialHeight: 320,
+                dialScale: 1,
+                ringThickness: 2,
+                ringBackgroundExtraWidth: 1,
+                indicatorDotSize: 14,
+                tickWidth: 1.4,
+                tickSlotWidth: 8,
+                gapBetweenTicks: 2,
+                largeTickFrequency: 10,
+                largeTickRatio: 0.88,
+                smallTickRatio: 0.5
+            ),
+            typography: typography
+        )
+    }
 
     var body: some View {
-        TimerWheelPicker(
-            selection: $duration,
-            range: 10...300,
-            step: 5,
-            style: style
-        )
+        VStack(spacing: 20) {
+            Text("Selected: \(selectedValue)")
+
+            TimerWheelPicker(
+                selection: $selectedValue,
+                range: 0...120,
+                step: 1,
+                initialSelection: 30,
+                style: style
+            )
+        }
     }
 }
 ```
+
+## API Contract Check
+
+The package already exposes the selected value correctly through `Binding<Int>`, and it now also exposes `initialSelection` for first-load fallback control. This is the right contract for other SwiftUI apps, and the included tests cover both the external binding read/write path and the public initial-selection initializer surface.  
+这个组件已经通过 `Binding<Int>` 正确暴露了选中值，并且现在也公开了 `initialSelection` 以控制首次加载时的回退默认值。这就是 SwiftUI app 最合适的接入契约，并且当前测试已经覆盖了外部绑定读写路径和公开的初始值初始化参数。
+
+What this means in practice:
+- The host app owns the source of truth. / 宿主 app 持有单一真值。
+- The picker reads and writes that value. / picker 负责读取和回写这个值。
+- The host app can use `.onChange`, persistence, analytics, or any other business logic around it. / 宿主 app 可以对这个值使用 `.onChange`、持久化、埋点或任何业务逻辑。
 
 ## Repository Structure
 
 - `Package.swift`: Swift Package manifest exporting `WheelPickerKit`. / 导出 `WheelPickerKit` 的 Swift Package 清单。
 - `Sources/WheelPickerKit/`: Shipped package source. / 实际分发的包源码。
-- `WheelPicker/`: Demo app source and immersive app shell. / 示例应用源码与沉浸式应用外壳。
-- `WheelPicker.xcodeproj/`: Xcode project for local development and demo running. / 用于本地开发和运行示例的 Xcode 工程。
+- `Tests/WheelPickerKitTests/`: Public API contract tests. / 公开 API 契约测试。
+- `WheelPicker/`: Demo app source and immersive verification shell. / 示例应用源码与沉浸式验证外壳。
+- `WheelPicker.xcodeproj/`: Local development and demo project. / 本地开发与示例运行工程。
 
 ## Publishing Notes
 
-- Push this repository to GitHub.
-- Create semantic version tags such as `1.0.0`.
-- Use those tags as your package version rules in Xcode.
+- Push the repository to GitHub.
+- Tag semantic versions such as `1.0.0`.
+- Consume those tags from other apps through Swift Package Manager.
 
-将此仓库推送到 GitHub 后：
-- 打上语义化版本标签，例如 `1.0.0`
-- 在 Xcode 中按版本规则接入
-- 以后通过 tag 管理升级，而不是靠裸分支
-
-## GitHub Push Steps
-
-What you need to do on your side:
-1. Create an empty GitHub repository.
-2. Copy its HTTPS or SSH URL.
-3. In this local project, run:
-
-```bash
-git remote add origin <your-github-repo-url>
-git add .
-git commit -m "Prepare WheelPickerKit for GitHub distribution"
-git branch -M main
-git push -u origin main
-git tag 1.0.0
-git push origin 1.0.0
-```
-
-Then in another app:
-1. Open Xcode.
-2. `File > Add Package Dependencies...`
-3. Paste the same GitHub URL.
-4. Select version rule `Up to Next Major Version` from `1.0.0`.
-5. Add product `WheelPickerKit`.
-
-你这边需要做的操作：
-1. 在 GitHub 上创建一个空仓库。
-2. 复制它的 HTTPS 或 SSH 地址。
-3. 在当前本地项目里执行：
-
-```bash
-git remote add origin <你的 GitHub 仓库地址>
-git add .
-git commit -m "Prepare WheelPickerKit for GitHub distribution"
-git branch -M main
-git push -u origin main
-git tag 1.0.0
-git push origin 1.0.0
-```
-
-之后在另一个 app 的 Xcode 里：
-1. 打开 `File > Add Package Dependencies...`
-2. 粘贴同一个 GitHub 地址
-3. 版本规则选 `Up to Next Major Version`
-4. 起始版本填 `1.0.0`
-5. 添加产品 `WheelPickerKit`
-
-## Pre-Push Checklist
-
-- Confirm the repository URL is correct.
-- Decide your license before making the repo public.
-- Test package integration once from a clean app target.
-- Keep semantic version tags stable after publishing.
-
-- 确认仓库地址正确。
-- 在仓库公开前先决定许可证。
-- 至少在一个干净 app target 中测试一次包集成。
-- 发布后不要随意重写已公开的语义化版本标签。
-
-## Sync Protocol
-
-- `Sources/WheelPickerKit/` contains the distributable module. / `Sources/WheelPickerKit/` 保存真正可分发的模块。
-- `WheelPicker/` contains demo-only UI and must not leak into the library product. / `WheelPicker/` 只保存示例 UI，不得泄漏进库产品。
-- `TimerWheelPicker` owns the public API and exposes the selected value through `Binding<Int>`. / `TimerWheelPicker` 负责公开 API，并通过 `Binding<Int>` 暴露选中值。
-- When files, boundaries, or responsibilities change, update file headers and relevant `.folder.md` maps in the same change. / 当文件、边界或职责变化时，必须在同一修改中同步更新文件头注释与相关 `.folder.md` 地图。
+将仓库推送到 GitHub 后：
+- 打语义化版本标签，例如 `1.0.0`
+- 通过 Swift Package Manager 在其他 app 中按版本接入
+- 用 tag 管理升级，而不是直接依赖裸分支

@@ -1,16 +1,17 @@
-// [IN]: SwiftUI, platform color interpolation, package haptic service, and masked arc-geometry wheel configuration / SwiftUI、平台颜色插值、包内触感服务与带遮罩的圆弧几何滚轮配置
-// [OUT]: Package-private arc renderer with stable tick visibility for classic and immersive skins / 为经典与沉浸式皮肤提供稳定刻度可见域的包内圆弧渲染器
-// [POS]: Keep the tick band locked to the same visible arc geometry as the main guide curve / 让刻度带与主导向弧线锁定在同一条可见圆弧几何上
+// [IN]: SwiftUI, platform color interpolation, package haptic service, and full-bleed masked arc geometry / SwiftUI、平台颜色插值、包内触感服务与全宽遮罩圆弧几何
+// [OUT]: Package-private arc renderer with stable tick visibility, wider drag hit regions, and aggressively tightened value placement / 提供稳定刻度可见域、更宽拖动命中区与大幅收紧数值位置的包内圆弧渲染器
+// [POS]: Keep the guide arc, tick band, and value label locked to one centered full-width geometry with minimal dead air / 让导向弧、刻度带与数值标签锁定在同一条居中的全宽几何上，并尽量消灭空洞留白
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
 
 import SwiftUI
+
 #if canImport(UIKit)
-import UIKit
-private typealias PlatformColor = UIColor
+    import UIKit
+    private typealias PlatformColor = UIColor
 #elseif canImport(AppKit)
-import AppKit
-private typealias PlatformColor = NSColor
+    import AppKit
+    private typealias PlatformColor = NSColor
 #endif
 
 private let wheelPickerViewportCoordinateSpace = "WheelPickerViewport"
@@ -29,11 +30,11 @@ struct WheelPickerConfig {
     var backgroundColor: Color = Color(hue: 0.37, saturation: 0.72, brightness: 0.92)
     var tickGradient: Gradient = Gradient(colors: [
         Color(hue: 0.62, saturation: 0.42, brightness: 0.88),
-        Color(hue: 0.92, saturation: 0.92, brightness: 1.0)
+        Color(hue: 0.92, saturation: 0.92, brightness: 1.0),
     ])
     var valueGradient: Gradient = Gradient(colors: [
         Color(hue: 0.58, saturation: 0.34, brightness: 0.92),
-        Color(hue: 0.88, saturation: 0.82, brightness: 1.0)
+        Color(hue: 0.88, saturation: 0.82, brightness: 1.0),
     ])
     var largeTickRatio: CGFloat = 0.65
     var smallTickRatio: CGFloat = 0.4
@@ -79,9 +80,11 @@ struct WheelPickerConfig {
 
             guard clampedProgress <= currentStop.location else { continue }
 
-            let denominator = max(currentStop.location - previousStop.location, .leastNonzeroMagnitude)
+            let denominator = max(
+                currentStop.location - previousStop.location, .leastNonzeroMagnitude)
             let segmentProgress = (clampedProgress - previousStop.location) / denominator
-            return mixedColor(from: previousStop.color, to: currentStop.color, progress: segmentProgress)
+            return mixedColor(
+                from: previousStop.color, to: currentStop.color, progress: segmentProgress)
         }
 
         return stops.last?.color ?? firstStop.color
@@ -94,13 +97,13 @@ struct WheelPickerConfig {
         case 0:
             return [
                 .init(color: .white, location: 0),
-                .init(color: .white, location: 1)
+                .init(color: .white, location: 1),
             ]
         case 1:
             let singleColor = sortedStops[0].color
             return [
                 .init(color: singleColor, location: 0),
-                .init(color: singleColor, location: 1)
+                .init(color: singleColor, location: 1),
             ]
         default:
             return sortedStops
@@ -114,10 +117,17 @@ struct WheelPickerConfig {
 
         return Color(
             .sRGB,
-            red: Double(startComponents.red + ((endComponents.red - startComponents.red) * interpolation)),
-            green: Double(startComponents.green + ((endComponents.green - startComponents.green) * interpolation)),
-            blue: Double(startComponents.blue + ((endComponents.blue - startComponents.blue) * interpolation)),
-            opacity: Double(startComponents.alpha + ((endComponents.alpha - startComponents.alpha) * interpolation))
+            red: Double(
+                startComponents.red + ((endComponents.red - startComponents.red) * interpolation)),
+            green: Double(
+                startComponents.green
+                    + ((endComponents.green - startComponents.green) * interpolation)),
+            blue: Double(
+                startComponents.blue + ((endComponents.blue - startComponents.blue) * interpolation)
+            ),
+            opacity: Double(
+                startComponents.alpha
+                    + ((endComponents.alpha - startComponents.alpha) * interpolation))
         )
     }
 }
@@ -131,7 +141,6 @@ private struct WheelArcGeometry {
     let topY: CGFloat
     let labelTopY: CGFloat
     let labelWidth: CGFloat
-    let shoulderLabelXRatio: CGFloat
 
     init(size: CGSize, config: WheelPickerConfig) {
         self.size = size
@@ -140,7 +149,8 @@ private struct WheelArcGeometry {
         switch config.arcProfile {
         case .classic:
             let strokeWidth = config.strokeStyle.lineWidth
-            let usableWidth = min(size.width - strokeWidth, max((size.height - strokeWidth) * 2, strokeWidth * 2))
+            let usableWidth = min(
+                size.width - strokeWidth, max((size.height - strokeWidth) * 2, strokeWidth * 2))
             let resolvedChordWidth = max(usableWidth, config.tickSlotWidth * 6)
             self.chordWidth = resolvedChordWidth
             self.radius = resolvedChordWidth / 2
@@ -148,17 +158,18 @@ private struct WheelArcGeometry {
             self.topY = centerY - radius
             self.labelTopY = topY + (radius * 0.54)
             self.labelWidth = min(radius * 1.06, size.width * 0.72)
-            self.shoulderLabelXRatio = 0.56
         case .fullWidthShallow:
-            let resolvedChordWidth = max(size.width - 18, config.tickSlotWidth * 12)
+            let resolvedChordWidth = max(
+                size.width + max(config.tickWidth, config.strokeStyle.lineWidth) + 4,
+                config.tickSlotWidth * 12)
             let sagitta = min(max(size.height * 0.18, 48), 74)
             self.chordWidth = resolvedChordWidth
-            self.radius = (sagitta / 2) + ((resolvedChordWidth * resolvedChordWidth) / (8 * sagitta))
+            self.radius =
+                (sagitta / 2) + ((resolvedChordWidth * resolvedChordWidth) / (8 * sagitta))
             self.topY = max(14, config.indicatorDotSize * 0.55)
             self.centerY = topY + radius
-            self.labelTopY = topY + sagitta + 34
+            self.labelTopY = topY + sagitta - 56
             self.labelWidth = min(size.width * 0.88, 320)
-            self.shoulderLabelXRatio = 0.68
         }
     }
 
@@ -196,17 +207,19 @@ private struct WheelArcGeometry {
         case .classic:
             return config.strokeStyle.lineWidth * ratio
         case .fullWidthShallow:
-            let baseLength = min(max(size.height * 0.18, 34), 52)
-            return max(baseLength * ratio, isLargeTick ? 22 : 12)
+            let baseLength = min(max(size.height * 0.06, 12), 18)
+            return max(baseLength * ratio, isLargeTick ? 10 : 5)
         }
     }
 
     func tickOffset(isLargeTick: Bool) -> CGFloat {
         switch config.arcProfile {
         case .classic:
-            return (tickLength(isLargeTick: isLargeTick) / 2) + (config.strokeStyle.lineWidth * 0.04)
+            return (tickLength(isLargeTick: isLargeTick) / 2)
+                + (config.strokeStyle.lineWidth * 0.04)
         case .fullWidthShallow:
-            return (tickLength(isLargeTick: isLargeTick) / 2) + (config.strokeStyle.lineWidth / 2) + 8
+            return (tickLength(isLargeTick: isLargeTick) / 2) + (config.strokeStyle.lineWidth / 2)
+                + 12
         }
     }
 
@@ -282,12 +295,17 @@ struct WheelPickerView<Label: View>: View {
 
             ZStack(alignment: .top) {
                 backgroundArc(geometry: geometry)
+                    .allowsHitTesting(false)
                 wheelPickerScrollView(size: proxy.size, geometry: geometry)
                 selectionIndicator(geometry: geometry)
-                shoulderLabels(for: currentValue, geometry: geometry)
+                    .allowsHitTesting(false)
                 label(currentValue, isScrolling)
-                    .frame(maxWidth: geometry.labelWidth, maxHeight: geometry.labelHeight, alignment: .top)
+                    .frame(
+                        maxWidth: geometry.labelWidth, maxHeight: geometry.labelHeight,
+                        alignment: .top
+                    )
                     .position(x: geometry.centerX, y: geometry.labelCenterY)
+                    .allowsHitTesting(false)
             }
             .compositingGroup()
         }
@@ -354,7 +372,8 @@ struct WheelPickerView<Label: View>: View {
                     .blur(radius: config.arcProfile == .classic ? 0.5 : 0)
             }
             .shadow(
-                color: config.arcProfile == .fullWidthShallow ? Color.black.opacity(0.16) : config.backgroundColor.opacity(0.4),
+                color: config.arcProfile == .fullWidthShallow
+                    ? Color.black.opacity(0.16) : config.backgroundColor.opacity(0.4),
                 radius: config.arcProfile == .fullWidthShallow ? 10 : 24,
                 y: config.arcProfile == .fullWidthShallow ? 2 : 16
             )
@@ -376,6 +395,8 @@ struct WheelPickerView<Label: View>: View {
         .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
         .scrollPosition(id: $activePosition, anchor: .center)
         .coordinateSpace(name: wheelPickerViewportCoordinateSpace)
+        .background(Color.white.opacity(0.001))
+        .contentShape(Rectangle())
     }
 
     private func selectionIndicator(geometry: WheelArcGeometry) -> some View {
@@ -406,20 +427,6 @@ struct WheelPickerView<Label: View>: View {
     }
 
     @ViewBuilder
-    private func shoulderLabels(for value: Int, geometry: WheelArcGeometry) -> some View {
-        if config.arcProfile == .fullWidthShallow {
-            ForEach(shoulderLabelEntries(for: value, geometry: geometry)) { entry in
-                let point = geometry.pointOnArc(relativeX: entry.relativeX, outwardOffset: 30)
-
-                Text("\(entry.value)")
-                    .font(.system(size: 27, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.white.opacity(0.96))
-                    .position(point)
-            }
-        }
-    }
-
-    @ViewBuilder
     private func tickView(_ value: Int, size: CGSize, geometry: WheelArcGeometry) -> some View {
         let tickIndex = displayValues.firstIndex(of: value) ?? 0
         let isLargeTick = (tickIndex % max(config.largeTickFrequency, 1)) == 0
@@ -430,7 +437,8 @@ struct WheelPickerView<Label: View>: View {
             let frame = proxy.frame(in: .named(wheelPickerViewportCoordinateSpace))
             let relativeX = frame.midX - (size.width / 2)
             let vector = geometry.outwardUnitVector(forRelativeX: relativeX)
-            let arcPoint = geometry.pointOnArc(relativeX: relativeX, outwardOffset: geometry.tickOffset(isLargeTick: isLargeTick))
+            let arcPoint = geometry.pointOnArc(
+                relativeX: relativeX, outwardOffset: geometry.tickOffset(isLargeTick: isLargeTick))
             let tickOpacity = geometry.tickOpacity(forRelativeX: relativeX)
 
             Capsule()
@@ -438,7 +446,7 @@ struct WheelPickerView<Label: View>: View {
                     LinearGradient(
                         colors: [
                             tickColor.opacity(config.arcProfile == .fullWidthShallow ? 0.72 : 0.64),
-                            tickColor
+                            tickColor,
                         ],
                         startPoint: .top,
                         endPoint: .bottom
@@ -447,12 +455,14 @@ struct WheelPickerView<Label: View>: View {
                 .frame(width: config.tickWidth, height: tickLength)
                 .rotationEffect(geometry.tickRotation(forRelativeX: relativeX))
                 .position(
-                    x: (proxy.size.width / 2) + (vector.dx * geometry.tickOffset(isLargeTick: isLargeTick)),
+                    x: (proxy.size.width / 2)
+                        + (vector.dx * geometry.tickOffset(isLargeTick: isLargeTick)),
                     y: arcPoint.y
                 )
                 .opacity(tickOpacity)
                 .shadow(
-                    color: config.arcProfile == .fullWidthShallow ? Color.white.opacity(0.04) : Color.black.opacity(0.34),
+                    color: config.arcProfile == .fullWidthShallow
+                        ? Color.white.opacity(0.04) : Color.black.opacity(0.34),
                     radius: config.arcProfile == .fullWidthShallow ? 0 : 4,
                     y: config.arcProfile == .fullWidthShallow ? 0 : 2
                 )
@@ -460,55 +470,10 @@ struct WheelPickerView<Label: View>: View {
         .frame(width: config.tickSlotWidth, height: size.height)
     }
 
-    private func shoulderLabelEntries(for value: Int, geometry: WheelArcGeometry) -> [ShoulderLabelEntry] {
-        guard
-            displayValues.count > 1,
-            let selectedIndex = displayValues.firstIndex(of: value)
-        else {
-            return []
-        }
-
-        let approximateVisibleTicks = max(Int((geometry.chordWidth / max(config.tickSlotWidth + max(config.gapBetweenTicks, 0), 1)).rounded()), 1)
-        let shoulderOffset = max(config.largeTickFrequency * 2, Int(Double(approximateVisibleTicks) * 0.28))
-        let leftIndex = snappedMajorIndex(selectedIndex - shoulderOffset)
-        let rightIndex = snappedMajorIndex(selectedIndex + shoulderOffset)
-        let leftValue = displayValues[leftIndex]
-        let rightValue = displayValues[rightIndex]
-
-        var entries: [ShoulderLabelEntry] = [
-            .init(id: "left", value: leftValue, relativeX: -(geometry.halfChord * geometry.shoulderLabelXRatio))
-        ]
-
-        if rightValue != leftValue {
-            entries.append(
-                .init(id: "right", value: rightValue, relativeX: geometry.halfChord * geometry.shoulderLabelXRatio)
-            )
-        }
-
-        return entries
-    }
-
-    private func snappedMajorIndex(_ rawIndex: Int) -> Int {
-        guard !displayValues.isEmpty else { return 0 }
-
-        let frequency = max(config.largeTickFrequency, 1)
-        let clamped = min(max(rawIndex, 0), displayValues.count - 1)
-        let lower = (clamped / frequency) * frequency
-        let upper = min(lower + frequency, displayValues.count - 1)
-
-        return abs(clamped - lower) <= abs(upper - clamped) ? lower : upper
-    }
-
     private func resolvedSelection(for value: Int) -> Int {
         guard let firstValue = values.first else { return value }
         return values.min(by: { abs($0 - value) < abs($1 - value) }) ?? firstValue
     }
-}
-
-private struct ShoulderLabelEntry: Identifiable {
-    let id: String
-    let value: Int
-    let relativeX: CGFloat
 }
 
 private struct RGBAComponents {
@@ -518,30 +483,30 @@ private struct RGBAComponents {
     let alpha: CGFloat
 }
 
-private extension PlatformColor {
-    var rgbaComponents: RGBAComponents {
-#if canImport(UIKit)
-        var red: CGFloat = 0
-        var green: CGFloat = 0
-        var blue: CGFloat = 0
-        var alpha: CGFloat = 0
+extension PlatformColor {
+    fileprivate var rgbaComponents: RGBAComponents {
+        #if canImport(UIKit)
+            var red: CGFloat = 0
+            var green: CGFloat = 0
+            var blue: CGFloat = 0
+            var alpha: CGFloat = 0
 
-        if getRed(&red, green: &green, blue: &blue, alpha: &alpha) {
+            if getRed(&red, green: &green, blue: &blue, alpha: &alpha) {
+                return RGBAComponents(red: red, green: green, blue: blue, alpha: alpha)
+            }
+
+            let resolved = resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
+            resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
             return RGBAComponents(red: red, green: green, blue: blue, alpha: alpha)
-        }
-
-        let resolved = resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
-        resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-        return RGBAComponents(red: red, green: green, blue: blue, alpha: alpha)
-#elseif canImport(AppKit)
-        let resolved = usingColorSpace(.deviceRGB) ?? self
-        return RGBAComponents(
-            red: resolved.redComponent,
-            green: resolved.greenComponent,
-            blue: resolved.blueComponent,
-            alpha: resolved.alphaComponent
-        )
-#endif
+        #elseif canImport(AppKit)
+            let resolved = usingColorSpace(.deviceRGB) ?? self
+            return RGBAComponents(
+                red: resolved.redComponent,
+                green: resolved.greenComponent,
+                blue: resolved.blueComponent,
+                alpha: resolved.alphaComponent
+            )
+        #endif
     }
 }
 

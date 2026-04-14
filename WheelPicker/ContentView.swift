@@ -1,6 +1,6 @@
-// [IN]: SwiftUI, WheelPickerKit package product, and demo-owned immersive style state / SwiftUI、WheelPickerKit 包产品与示例侧沉浸式样式状态
-// [OUT]: Full-screen demo screen focused on the immersive arc picker presentation / 聚焦沉浸式圆弧选择器展示的全屏示例界面
-// [POS]: Prove the app shell owns background composition while the package owns the picker itself / 证明应用外壳负责背景构图，而包本体只负责选择器
+// [IN]: SwiftUI, WheelPickerKit package product, and demo-owned full-bleed immersive style state / SwiftUI、WheelPickerKit 包产品与示例侧全宽沉浸式样式状态
+// [OUT]: Full-screen demo screen focused on a full-bleed immersive arc picker presentation with explicit initial-value wiring that matches the package default contract / 聚焦全宽沉浸式圆弧选择器展示且显式接入初始值参数并与包默认契约一致的全屏示例界面
+// [POS]: Prove the app shell owns background composition while the package owns the picker, its edge-to-edge arc, and its first-load default contract / 证明应用外壳负责背景构图，而包本体只负责选择器、贴边圆弧与首次加载默认值契约
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
 
@@ -8,7 +8,7 @@ import SwiftUI
 import WheelPickerKit
 
 struct ContentView: View {
-    @State private var selectedDuration = 78
+    @State private var selectedDuration = 30
     private let pickerStyle = TimerWheelPickerStyle.immersiveArc
 
     var body: some View {
@@ -22,10 +22,10 @@ struct ContentView: View {
                     selection: $selectedDuration,
                     range: 5...180,
                     step: 1,
+                    initialSelection: 30,
                     style: pickerStyle
                 )
                 .frame(maxWidth: .infinity)
-                .padding(.horizontal, 12)
 
                 Spacer(minLength: 0)
             }

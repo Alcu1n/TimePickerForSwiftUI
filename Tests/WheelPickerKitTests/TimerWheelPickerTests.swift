@@ -1,5 +1,5 @@
 // [IN]: XCTest, SwiftUI bindings, and WheelPickerKit public picker-style contracts / XCTest、SwiftUI 绑定与 WheelPickerKit 公开选择器样式契约
-// [OUT]: Deterministic package tests for presets, arc profiles, and exposed configuration / 用于预设、圆弧轮廓与公开配置的确定性包测试
+// [OUT]: Deterministic package tests for presets, initial selection fallback, exposed aliases, and binding-based selection flow / 用于预设、初始默认值回退、公开别名与绑定式选值流的确定性包测试
 // [POS]: Lock down the distributable API while allowing the renderer internals to evolve / 锁定可分发 API，同时允许渲染器内部继续演进
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
@@ -42,6 +42,23 @@ final class TimerWheelPickerTests: XCTestCase {
         XCTAssertEqual(style.typography.unitLabel, "SEC")
     }
 
+    func testReadableCustomizationAliasesStayAvailable() {
+        let colors = TimerWheelPickerStyle.Colors(
+            inactiveTint: .orange,
+            tickGradient: Gradient(colors: [.blue, .purple]),
+            tickColor: .red
+        )
+        var typography = TimerWheelPickerStyle.Typography(unitLabel: "Relaxed")
+        typography.captionText = "Wind Up"
+        let style = TimerWheelPickerStyle(colors: colors, typography: typography)
+        let config = style.makeWheelConfig()
+
+        XCTAssertNotNil(style.colors.tickColor)
+        XCTAssertEqual(config.tickGradient.stops.count, 2)
+        XCTAssertEqual(style.typography.unitLabel, "Wind Up")
+        XCTAssertEqual(style.typography.captionText, "Wind Up")
+    }
+
     @MainActor
     func testPickerInitializerExposesRangeStepAndStyle() {
         let style = TimerWheelPickerStyle(
@@ -57,6 +74,36 @@ final class TimerWheelPickerTests: XCTestCase {
 
         XCTAssertEqual(picker.range, 10...300)
         XCTAssertEqual(picker.step, 5)
+        XCTAssertEqual(picker.initialSelection, 30)
         XCTAssertEqual(picker.style.typography.unitLabel, "SEC")
+    }
+
+    @MainActor
+    func testConsumerBindingCanReadAndWriteSelectionValue() {
+        var currentSelection = 45
+        let selection = Binding(
+            get: { currentSelection },
+            set: { currentSelection = $0 }
+        )
+
+        _ = TimerWheelPicker(selection: selection, style: .immersiveArc)
+
+        XCTAssertEqual(selection.wrappedValue, 45)
+        selection.wrappedValue = 90
+        XCTAssertEqual(currentSelection, 90)
+    }
+
+    @MainActor
+    func testPickerInitializerExposesCustomInitialSelection() {
+        let selection = Binding.constant(45)
+        let picker = TimerWheelPicker(
+            selection: selection,
+            range: 10...300,
+            step: 5,
+            initialSelection: 75,
+            style: .immersiveArc
+        )
+
+        XCTAssertEqual(picker.initialSelection, 75)
     }
 }
