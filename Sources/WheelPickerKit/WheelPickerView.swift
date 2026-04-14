@@ -1,6 +1,6 @@
 // [IN]: SwiftUI, platform color interpolation, package haptic service, and full-bleed masked arc geometry / SwiftUI、平台颜色插值、包内触感服务与全宽遮罩圆弧几何
-// [OUT]: Package-private arc renderer with stable tick visibility, wider drag hit regions, and aggressively tightened value placement / 提供稳定刻度可见域、更宽拖动命中区与大幅收紧数值位置的包内圆弧渲染器
-// [POS]: Keep the guide arc, tick band, and value label locked to one centered full-width geometry with minimal dead air / 让导向弧、刻度带与数值标签锁定在同一条居中的全宽几何上，并尽量消灭空洞留白
+// [OUT]: Package-private arc renderer with mirrored immersive swipe direction, stable tick visibility, viewport-based tick fade, wider drag hit regions, and aggressively tightened value placement / 提供沉浸式镜像滑动方向、稳定刻度可见域、基于视口的刻度褪色、更宽拖动命中区与大幅收紧数值位置的包内圆弧渲染器
+// [POS]: Keep the guide arc, tick band, and value label locked to one centered full-width geometry while driving swipe direction, edge fade, and label lift from explicit style config / 让导向弧、刻度带与数值标签锁定在同一条居中的全宽几何上，并通过显式样式配置驱动滑动方向、边缘褪色与数字上提
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
 
@@ -32,6 +32,8 @@ struct WheelPickerConfig {
         Color(hue: 0.62, saturation: 0.42, brightness: 0.88),
         Color(hue: 0.92, saturation: 0.92, brightness: 1.0),
     ])
+    var tickCenterOpacity: Double = 1
+    var tickEdgeOpacity: Double = 1
     var valueGradient: Gradient = Gradient(colors: [
         Color(hue: 0.58, saturation: 0.34, brightness: 0.92),
         Color(hue: 0.88, saturation: 0.82, brightness: 1.0),
@@ -41,6 +43,7 @@ struct WheelPickerConfig {
     var tickWidth: CGFloat = 3
     var tickSlotWidth: CGFloat = 8
     var gapBetweenTicks: CGFloat = -2
+    var valueLabelOffsetY: CGFloat = 0
     var height: CGFloat = 200
     var indicatorHeight: CGFloat = 32
     var indicatorWidth: CGFloat = 6
@@ -156,7 +159,7 @@ private struct WheelArcGeometry {
             self.radius = resolvedChordWidth / 2
             self.centerY = size.height - (strokeWidth / 2)
             self.topY = centerY - radius
-            self.labelTopY = topY + (radius * 0.54)
+            self.labelTopY = topY + (radius * 0.54) + config.valueLabelOffsetY
             self.labelWidth = min(radius * 1.06, size.width * 0.72)
         case .fullWidthShallow:
             let resolvedChordWidth = max(
@@ -168,7 +171,7 @@ private struct WheelArcGeometry {
                 (sagitta / 2) + ((resolvedChordWidth * resolvedChordWidth) / (8 * sagitta))
             self.topY = max(14, config.indicatorDotSize * 0.55)
             self.centerY = topY + radius
-            self.labelTopY = topY + sagitta - 56
+            self.labelTopY = topY + sagitta - 56 + config.valueLabelOffsetY
             self.labelWidth = min(size.width * 0.88, 320)
         }
     }
@@ -178,8 +181,6 @@ private struct WheelArcGeometry {
     var labelHeight: CGFloat { max(size.height - labelTopY - 8, 0) }
     var labelCenterY: CGFloat { labelTopY + (labelHeight / 2) }
     var indicatorPoint: CGPoint { CGPoint(x: centerX, y: topY) }
-    private var tickFadeWidth: CGFloat { config.arcProfile == .fullWidthShallow ? 16 : 6 }
-
     func y(forRelativeX relativeX: CGFloat) -> CGFloat {
         let clampedX = min(max(relativeX, -halfChord), halfChord)
         let offsetY = sqrt(max((radius * radius) - (clampedX * clampedX), 0))
@@ -232,14 +233,19 @@ private struct WheelArcGeometry {
     }
 
     func tickOpacity(forRelativeX relativeX: CGFloat) -> CGFloat {
-        let distanceFromCenter = abs(relativeX)
-        let fadeStart = max(halfChord - tickFadeWidth, 0)
+        abs(relativeX) <= halfChord ? 1 : 0
+    }
 
-        guard distanceFromCenter < halfChord else { return 0 }
-        guard distanceFromCenter > fadeStart else { return 1 }
-
-        let remaining = halfChord - distanceFromCenter
-        return max(min(remaining / max(tickFadeWidth, 0.001), 1), 0)
+    func tickViewportOpacity(forRelativeX relativeX: CGFloat, centerOpacity: Double, edgeOpacity: Double)
+        -> CGFloat
+    {
+        let clampedCenterOpacity = min(max(centerOpacity, 0), 1)
+        let clampedEdgeOpacity = min(max(edgeOpacity, 0), 1)
+        let distanceProgress = min(max(abs(relativeX) / max(halfChord, 0.001), 0), 1)
+        let easedProgress = distanceProgress * distanceProgress
+        let opacity = clampedCenterOpacity
+            + ((clampedEdgeOpacity - clampedCenterOpacity) * easedProgress)
+        return CGFloat(opacity)
     }
 
     func makeArcPath() -> Path {
@@ -273,7 +279,7 @@ struct WheelPickerView<Label: View>: View {
     @StateObject private var haptics = WheelHapticController()
 
     private var displayValues: [Int] {
-        config.arcProfile == .fullWidthShallow ? values.reversed() : values
+        values
     }
 
     init(
@@ -439,33 +445,45 @@ struct WheelPickerView<Label: View>: View {
             let vector = geometry.outwardUnitVector(forRelativeX: relativeX)
             let arcPoint = geometry.pointOnArc(
                 relativeX: relativeX, outwardOffset: geometry.tickOffset(isLargeTick: isLargeTick))
-            let tickOpacity = geometry.tickOpacity(forRelativeX: relativeX)
+            let visibilityOpacity = geometry.tickOpacity(forRelativeX: relativeX)
+            let viewportOpacity = geometry.tickViewportOpacity(
+                forRelativeX: relativeX,
+                centerOpacity: config.tickCenterOpacity,
+                edgeOpacity: config.tickEdgeOpacity
+            )
 
-            Capsule()
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            tickColor.opacity(config.arcProfile == .fullWidthShallow ? 0.72 : 0.64),
-                            tickColor,
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(width: config.tickWidth, height: tickLength)
-                .rotationEffect(geometry.tickRotation(forRelativeX: relativeX))
-                .position(
-                    x: (proxy.size.width / 2)
-                        + (vector.dx * geometry.tickOffset(isLargeTick: isLargeTick)),
-                    y: arcPoint.y
-                )
-                .opacity(tickOpacity)
-                .shadow(
-                    color: config.arcProfile == .fullWidthShallow
-                        ? Color.white.opacity(0.04) : Color.black.opacity(0.34),
-                    radius: config.arcProfile == .fullWidthShallow ? 0 : 4,
-                    y: config.arcProfile == .fullWidthShallow ? 0 : 2
-                )
+            Group {
+                if config.arcProfile == .fullWidthShallow {
+                    Capsule()
+                        .fill(tickColor)
+                } else {
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    tickColor.opacity(0.64),
+                                    tickColor,
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                }
+            }
+            .frame(width: config.tickWidth, height: tickLength)
+            .rotationEffect(geometry.tickRotation(forRelativeX: relativeX))
+            .position(
+                x: (proxy.size.width / 2)
+                    + (vector.dx * geometry.tickOffset(isLargeTick: isLargeTick)),
+                y: arcPoint.y
+            )
+            .opacity(visibilityOpacity * viewportOpacity)
+            .shadow(
+                color: config.arcProfile == .fullWidthShallow
+                    ? Color.white.opacity(0.04) : Color.black.opacity(0.34),
+                radius: config.arcProfile == .fullWidthShallow ? 0 : 4,
+                y: config.arcProfile == .fullWidthShallow ? 0 : 2
+            )
         }
         .frame(width: config.tickSlotWidth, height: size.height)
     }

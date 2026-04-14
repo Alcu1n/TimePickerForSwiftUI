@@ -77,8 +77,8 @@ struct FocusTimerView: View {
 }
 ```
 
-`TimerWheelPicker` now defaults to `.immersiveArc`. Only pass `style` when you want to override that default.  
-`TimerWheelPicker` 现在默认就是 `.immersiveArc`。只有在你想覆盖默认样式时才需要显式传入 `style`。
+`TimerWheelPicker` now defaults to `.immersiveArc`. Only pass `style` when you want to override that default. In the immersive preset, swiping left increases the value, and the visible guide arc defaults to pure white at `20%` opacity.  
+`TimerWheelPicker` 现在默认就是 `.immersiveArc`。只有在你想覆盖默认样式时才需要显式传入 `style`。在沉浸式预设中，手指左滑会让数值增加，而可见导向弧默认是纯白 `20%` 透明度。
 
 ## Selection Output
 
@@ -173,7 +173,7 @@ In this example, `selectedMinutes` starts at `0`, which is outside the valid ste
 
 #### Presets
 
-- `.immersiveArc`: Default as of `2.0.0`; uses the full-width shallow arc treatment with tighter value placement and metallic ratchet feedback. / 自 `2.0.0` 起成为默认值；使用全宽浅弧视觉，带更贴近弧线的数字布局和金属棘轮反馈。
+- `.immersiveArc`: Default as of `2.0.0`; uses the full-width shallow arc treatment with mirrored swipe direction, tighter value placement, a `20%` white guide arc, and metallic ratchet feedback. / 自 `2.0.0` 起成为默认值；使用全宽浅弧视觉，带镜像滑动方向、更贴近弧线的数字布局、`20%` 白色导向弧与金属棘轮反馈。
 - `.premiumDemo`: Legacy opt-in preset that keeps the original thicker wheel treatment. / 旧样式的显式兼容预设，保留原始更厚重的滚轮视觉。
 
 ### Migration from `1.x`
@@ -188,14 +188,19 @@ If you are upgrading from `1.x`, the only behavioral default that changed is the
 The following knobs are public and intended for app-level customization.  
 以下参数都已经是公开 API，设计目标就是让引入该组件的 app 进行高度定制。
 
-### 1. Tick Color
+### 1. Tick Color and Edge Fade
+
+For the immersive arc, the default treatment is now center-white ticks that fade toward the screen edges. You control the base color with `tickColor`, the center opacity with `tickCenterOpacity`, and the edge fade floor with `tickEdgeOpacity`.  
+对于沉浸式浅弧，当前默认样式已经改为“中间纯白、向屏幕边缘逐渐褪色”的刻度。你可以用 `tickColor` 控制基础颜色，用 `tickCenterOpacity` 控制中心透明度，用 `tickEdgeOpacity` 控制边缘最低透明度。
 
 Use `tickColor` when you want a single solid tick color.  
 如果你只想要单色刻度，请使用 `tickColor`。
 
 ```swift
 let colors = TimerWheelPickerStyle.Colors(
-    tickColor: .white
+    tickColor: .white,
+    tickCenterOpacity: 1,
+    tickEdgeOpacity: 0.2
 )
 ```
 
@@ -208,6 +213,9 @@ let colors = TimerWheelPickerStyle.Colors(
 )
 ```
 
+`tickCenterOpacity` and `tickEdgeOpacity` still apply on top of that gradient, based on the tick's distance from the viewport center.  
+`tickCenterOpacity` 和 `tickEdgeOpacity` 仍会叠加在该渐变之上，并根据刻度距离视口中心的位置生效。
+
 ### 2. Guide Arc Color
 
 Use `guideArcTint` to customize the visible arc line color.  
@@ -215,7 +223,7 @@ Use `guideArcTint` to customize the visible arc line color.
 
 ```swift
 var colors = TimerWheelPickerStyle.Colors()
-colors.guideArcTint = Color.white.opacity(0.9)
+colors.guideArcTint = Color.white.opacity(0.2)
 ```
 
 `inactiveTint` is still available for compatibility; `guideArcTint` is just the readable alias.  
@@ -232,7 +240,19 @@ let typography = TimerWheelPickerStyle.Typography(
 )
 ```
 
-### 4. Bottom Caption Text
+### 4. Numeric Vertical Position
+
+Use `layout.valueLabelOffsetY` to move the large value and its caption vertically. Negative values move the label upward; positive values move it downward.  
+使用 `layout.valueLabelOffsetY` 调整大数字和底部文案的垂直位置。负值向上移动，正值向下移动。
+
+```swift
+let layout = TimerWheelPickerStyle.Layout(
+    arcProfile: .fullWidthShallow,
+    valueLabelOffsetY: -34
+)
+```
+
+### 5. Bottom Caption Text
 
 Use `captionText` to customize the bottom text shown under the value.  
 使用 `captionText` 自定义显示在数值下方的底部文本。
@@ -252,10 +272,12 @@ typography.captionText = "Relaxed"
 ```swift
 TimerWheelPickerStyle.Colors(
     activeTint: .white,
-    inactiveTint: Color.white.opacity(0.18),
+    inactiveTint: Color.white.opacity(0.2),
     ringBackground: Color.white.opacity(0.24),
     tickGradient: Gradient(colors: [.white.opacity(0.8), .white]),
     tickColor: .white,
+    tickCenterOpacity: 1,
+    tickEdgeOpacity: 0.2,
     valueGradient: Gradient(colors: [.white.opacity(0.92), .white])
 )
 ```
@@ -266,6 +288,8 @@ TimerWheelPickerStyle.Colors(
 - `ringBackground`: Background arc color behind the guide arc. / 导向弧后方背景弧颜色。
 - `tickGradient`: Gradient used by tick marks when `tickColor` is not set. / 未设置 `tickColor` 时刻度线使用的渐变。
 - `tickColor`: Solid tick color override for single-color ticks. / 单色刻度的直接覆盖色。
+- `tickCenterOpacity`: Center opacity of the tick band in viewport space. / 刻度带在视口中心位置的透明度。
+- `tickEdgeOpacity`: Edge opacity floor of the tick band in viewport space. / 刻度带在视口边缘位置的最低透明度。
 - `valueGradient`: Numeric value color mapping. / 中央数值颜色映射。
 
 ### `TimerWheelPickerStyle.Layout`
@@ -285,7 +309,8 @@ TimerWheelPickerStyle.Layout(
     gapBetweenTicks: 2,
     largeTickFrequency: 10,
     largeTickRatio: 0.9,
-    smallTickRatio: 0.52
+    smallTickRatio: 0.52,
+    valueLabelOffsetY: -34
 )
 ```
 
@@ -303,6 +328,7 @@ TimerWheelPickerStyle.Layout(
 - `largeTickFrequency`: Major tick frequency. / 主刻度频率。
 - `largeTickRatio`: Major tick height ratio. / 主刻度高度比例。
 - `smallTickRatio`: Minor tick height ratio. / 次刻度高度比例。
+- `valueLabelOffsetY`: Vertical offset applied to the value label block. Negative lifts it upward. / 作用在数值标签区块上的垂直偏移。负值表示继续上提。
 
 ### `TimerWheelPickerStyle.Typography`
 
@@ -332,9 +358,11 @@ struct CustomWheelExample: View {
         var colors = TimerWheelPickerStyle.Colors(
             ringBackground: Color.white.opacity(0.18),
             tickColor: .white,
+            tickCenterOpacity: 1,
+            tickEdgeOpacity: 0.2,
             valueGradient: Gradient(colors: [.white, .white.opacity(0.9)])
         )
-        colors.guideArcTint = Color.white.opacity(0.92)
+        colors.guideArcTint = Color.white.opacity(0.2)
 
         var typography = TimerWheelPickerStyle.Typography(
             valueFontSize: 92,
@@ -357,7 +385,8 @@ struct CustomWheelExample: View {
                 gapBetweenTicks: 2,
                 largeTickFrequency: 10,
                 largeTickRatio: 0.88,
-                smallTickRatio: 0.5
+                smallTickRatio: 0.5,
+                valueLabelOffsetY: -34
             ),
             typography: typography
         )

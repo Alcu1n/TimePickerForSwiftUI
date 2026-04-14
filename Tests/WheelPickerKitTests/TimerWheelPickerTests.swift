@@ -1,5 +1,5 @@
 // [IN]: XCTest, SwiftUI bindings, and WheelPickerKit public picker-style contracts / XCTest、SwiftUI 绑定与 WheelPickerKit 公开选择器样式契约
-// [OUT]: Deterministic package tests for presets, immersive default style, initial selection fallback, exposed aliases, and binding-based selection flow / 用于预设、默认沉浸式样式、初始默认值回退、公开别名与绑定式选值流的确定性包测试
+// [OUT]: Deterministic package tests for presets, immersive default style, initial selection fallback, exposed aliases, tick-fade knobs, guide-arc defaults, and binding-based selection flow / 用于预设、默认沉浸式样式、初始默认值回退、公开别名、刻度褪色参数、导向弧默认值与绑定式选值流的确定性包测试
 // [POS]: Lock down the distributable API while allowing the renderer internals to evolve and the default style contract to stay explicit / 锁定可分发 API，同时允许渲染器内部继续演进并让默认样式契约保持明确
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
@@ -24,6 +24,9 @@ final class TimerWheelPickerTests: XCTestCase {
         XCTAssertEqual(style.layout.arcProfile, .fullWidthShallow)
         XCTAssertEqual(style.layout.dialScale, 1, accuracy: 0.001)
         XCTAssertEqual(style.layout.largeTickFrequency, 10)
+        XCTAssertEqual(style.colors.tickCenterOpacity, 1, accuracy: 0.001)
+        XCTAssertEqual(style.colors.tickEdgeOpacity, 0.2, accuracy: 0.001)
+        XCTAssertEqual(style.layout.valueLabelOffsetY, -34, accuracy: 0.001)
         XCTAssertEqual(style.typography.unitLabel, "Relaxed")
     }
 
@@ -46,15 +49,27 @@ final class TimerWheelPickerTests: XCTestCase {
         let colors = TimerWheelPickerStyle.Colors(
             inactiveTint: .orange,
             tickGradient: Gradient(colors: [.blue, .purple]),
-            tickColor: .red
+            tickColor: .red,
+            tickCenterOpacity: 0.95,
+            tickEdgeOpacity: 0.28
         )
         var typography = TimerWheelPickerStyle.Typography(unitLabel: "Relaxed")
         typography.captionText = "Wind Up"
-        let style = TimerWheelPickerStyle(colors: colors, typography: typography)
+        let style = TimerWheelPickerStyle(
+            colors: colors,
+            layout: .init(valueLabelOffsetY: -18),
+            typography: typography
+        )
         let config = style.makeWheelConfig()
 
         XCTAssertNotNil(style.colors.tickColor)
         XCTAssertEqual(config.tickGradient.stops.count, 2)
+        XCTAssertEqual(style.colors.tickCenterOpacity, 0.95, accuracy: 0.001)
+        XCTAssertEqual(style.colors.tickEdgeOpacity, 0.28, accuracy: 0.001)
+        XCTAssertEqual(style.layout.valueLabelOffsetY, -18, accuracy: 0.001)
+        XCTAssertEqual(config.tickCenterOpacity, 0.95, accuracy: 0.001)
+        XCTAssertEqual(config.tickEdgeOpacity, 0.28, accuracy: 0.001)
+        XCTAssertEqual(config.valueLabelOffsetY, -18, accuracy: 0.001)
         XCTAssertEqual(style.typography.unitLabel, "Wind Up")
         XCTAssertEqual(style.typography.captionText, "Wind Up")
     }
