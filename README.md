@@ -3,6 +3,14 @@
 Premium SwiftUI wheel picker shipped as a Swift Package, with a separate immersive demo app for visual verification.  
 一个以 Swift Package 形式分发、并附带独立沉浸式示例应用用于视觉验证的高质感 SwiftUI 滚轮选择器。
 
+## Versioning
+
+`2.0.0` is the breaking-change line where `TimerWheelPicker` switches its default visual preset from `.premiumDemo` to `.immersiveArc`.  
+`2.0.0` 是 breaking change 版本线：`TimerWheelPicker` 的默认视觉预设从 `.premiumDemo` 切换为 `.immersiveArc`。
+
+If you want the old thick wheel look after upgrading, pass `style: .premiumDemo` explicitly.  
+如果你升级后仍想保留旧的厚重滚轮样式，请显式传入 `style: .premiumDemo`。
+
 ## What This Package Ships
 
 `WheelPickerKit` exports only the reusable picker surface:
@@ -37,7 +45,7 @@ It does not ship the demo app's background shell, screen layout, or any app-only
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/<your-account>/<your-repo>.git", from: "1.0.0")
+    .package(url: "https://github.com/<your-account>/<your-repo>.git", from: "2.0.0")
 ],
 targets: [
     .target(
@@ -63,12 +71,14 @@ struct FocusTimerView: View {
             selection: $minutes,
             range: 5...180,
             step: 1,
-            initialSelection: 30,
-            style: .immersiveArc
+            initialSelection: 30
         )
     }
 }
 ```
+
+`TimerWheelPicker` now defaults to `.immersiveArc`. Only pass `style` when you want to override that default.  
+`TimerWheelPicker` 现在默认就是 `.immersiveArc`。只有在你想覆盖默认样式时才需要显式传入 `style`。
 
 ## Selection Output
 
@@ -90,8 +100,7 @@ struct TimerHostView: View {
                 selection: $selectedMinutes,
                 range: 5...180,
                 step: 1,
-                initialSelection: 30,
-                style: .immersiveArc
+                initialSelection: 30
             )
         }
         .onChange(of: selectedMinutes) { oldValue, newValue in
@@ -111,7 +120,7 @@ TimerWheelPicker(
     range: ClosedRange<Int> = 5...180,
     step: Int = 1,
     initialSelection: Int = 30,
-    style: TimerWheelPickerStyle = .premiumDemo
+    style: TimerWheelPickerStyle = .immersiveArc
 )
 ```
 
@@ -141,8 +150,7 @@ struct DefaultValueExample: View {
             selection: $selectedMinutes,
             range: 5...180,
             step: 5,
-            initialSelection: 30,
-            style: .immersiveArc
+            initialSelection: 30
         )
     }
 }
@@ -165,8 +173,15 @@ In this example, `selectedMinutes` starts at `0`, which is outside the valid ste
 
 #### Presets
 
-- `.premiumDemo`: Keeps the original thicker wheel treatment. / 保留原始更厚重的滚轮视觉。
-- `.immersiveArc`: Uses the full-width shallow arc treatment with tighter value placement and metallic ratchet feedback. / 使用全宽浅弧视觉，带更贴近弧线的数字布局和金属棘轮反馈。
+- `.immersiveArc`: Default as of `2.0.0`; uses the full-width shallow arc treatment with tighter value placement and metallic ratchet feedback. / 自 `2.0.0` 起成为默认值；使用全宽浅弧视觉，带更贴近弧线的数字布局和金属棘轮反馈。
+- `.premiumDemo`: Legacy opt-in preset that keeps the original thicker wheel treatment. / 旧样式的显式兼容预设，保留原始更厚重的滚轮视觉。
+
+### Migration from `1.x`
+
+If you are upgrading from `1.x`, the only behavioral default that changed is the visual preset:
+- Before `2.0.0`, `TimerWheelPicker(...)` defaulted to `.premiumDemo`. / 在 `2.0.0` 之前，`TimerWheelPicker(...)` 默认是 `.premiumDemo`。
+- Starting in `2.0.0`, `TimerWheelPicker(...)` defaults to `.immersiveArc`. / 从 `2.0.0` 开始，`TimerWheelPicker(...)` 默认是 `.immersiveArc`。
+- To preserve the old look, set `style: .premiumDemo` explicitly. / 如果你要保留旧观感，请显式设置 `style: .premiumDemo`。
 
 ## Customization API
 

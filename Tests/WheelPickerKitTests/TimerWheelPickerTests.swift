@@ -1,6 +1,6 @@
 // [IN]: XCTest, SwiftUI bindings, and WheelPickerKit public picker-style contracts / XCTest、SwiftUI 绑定与 WheelPickerKit 公开选择器样式契约
-// [OUT]: Deterministic package tests for presets, initial selection fallback, exposed aliases, and binding-based selection flow / 用于预设、初始默认值回退、公开别名与绑定式选值流的确定性包测试
-// [POS]: Lock down the distributable API while allowing the renderer internals to evolve / 锁定可分发 API，同时允许渲染器内部继续演进
+// [OUT]: Deterministic package tests for presets, immersive default style, initial selection fallback, exposed aliases, and binding-based selection flow / 用于预设、默认沉浸式样式、初始默认值回退、公开别名与绑定式选值流的确定性包测试
+// [POS]: Lock down the distributable API while allowing the renderer internals to evolve and the default style contract to stay explicit / 锁定可分发 API，同时允许渲染器内部继续演进并让默认样式契约保持明确
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
 
@@ -61,21 +61,30 @@ final class TimerWheelPickerTests: XCTestCase {
 
     @MainActor
     func testPickerInitializerExposesRangeStepAndStyle() {
-        let style = TimerWheelPickerStyle(
-            typography: .init(unitLabel: "SEC")
-        )
         let selection = Binding.constant(45)
         let picker = TimerWheelPicker(
             selection: selection,
             range: 10...300,
-            step: 5,
-            style: style
+            step: 5
         )
 
         XCTAssertEqual(picker.range, 10...300)
         XCTAssertEqual(picker.step, 5)
         XCTAssertEqual(picker.initialSelection, 30)
-        XCTAssertEqual(picker.style.typography.unitLabel, "SEC")
+        XCTAssertEqual(picker.style.layout.arcProfile, .fullWidthShallow)
+        XCTAssertEqual(picker.style.typography.unitLabel, "Relaxed")
+    }
+
+    @MainActor
+    func testPickerInitializerAllowsLegacyPremiumPresetOverride() {
+        let selection = Binding.constant(45)
+        let picker = TimerWheelPicker(
+            selection: selection,
+            style: .premiumDemo
+        )
+
+        XCTAssertEqual(picker.style.layout.arcProfile, .classic)
+        XCTAssertEqual(picker.style.typography.unitLabel, "MIN")
     }
 
     @MainActor

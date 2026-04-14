@@ -1,6 +1,6 @@
 // [IN]: SwiftUI, package-private full-bleed arc renderer, and timer-facing public style presets / SwiftUI、包内全宽圆弧渲染器与面向计时器的公开样式预设
-// [OUT]: Public timer wheel picker API exposing selection, initial selection fallback, readable style aliases, and immersive presets / 暴露选中值、初始默认值回退、易读样式别名与沉浸式预设的公开计时器选择器 API
-// [POS]: Keep the shipped package surface small while letting consumers customize the arc, ticks, value text, caption, and initial selection safely / 保持包 API 精简，同时让接入方安全自定义圆弧、刻度、数字、底部文案与初始默认值
+// [OUT]: Public timer wheel picker API exposing selection, initial selection fallback, readable style aliases, and an immersive-by-default preset contract / 暴露选中值、初始默认值回退、易读样式别名与默认沉浸式预设契约的公开计时器选择器 API
+// [POS]: Keep the shipped package surface small while letting consumers customize the arc, ticks, value text, caption, and initial selection while defaulting new integrations to the immersive arc / 保持包 API 精简，同时让接入方安全自定义圆弧、刻度、数字、底部文案与初始默认值，并让新接入默认落到沉浸式圆弧
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
 
@@ -226,7 +226,7 @@ public struct TimerWheelPicker: View {
         range: ClosedRange<Int> = 5...180,
         step: Int = 1,
         initialSelection: Int = 30,
-        style: TimerWheelPickerStyle = .premiumDemo
+        style: TimerWheelPickerStyle = .immersiveArc
     ) {
         self.range = range
         self.step = step
