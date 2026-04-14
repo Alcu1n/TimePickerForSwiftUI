@@ -1,7 +1,7 @@
 # WheelPicker
 
-Premium SwiftUI wheel picker shipped as a Swift Package, with a separate demo app for tuning and visual verification.  
-一个以 Swift Package 形式分发、并附带独立示例应用用于调参与视觉验证的高质感 SwiftUI 滚轮选择器。
+Premium SwiftUI wheel picker shipped as a Swift Package, with a separate immersive demo app for visual verification.  
+一个以 Swift Package 形式分发、并附带独立沉浸式示例应用用于视觉验证的高质感 SwiftUI 滚轮选择器。
 
 ## What The Package Actually Ships
 
@@ -9,12 +9,12 @@ The `WheelPickerKit` library product exports a clean picker component only:
 - `TimerWheelPicker`
 - `TimerWheelPickerStyle`
 
-It does **not** ship the demo app's control panel, page copy, background composition, or info cards.  
+It does **not** ship the demo app's warm background shell, page composition, or any future button chrome.  
 `WheelPickerKit` 包产品只导出干净的 picker 组件本体：
 - `TimerWheelPicker`
 - `TimerWheelPickerStyle`
 
-它**不包含**示例应用中的调参面板、页面文案、背景装饰或信息卡片。
+它**不包含**示例应用中的暖色背景外壳、页面构图或未来可能加入的按钮装饰层。
 
 ## Installation
 
@@ -62,7 +62,7 @@ struct FocusTimerView: View {
             selection: $minutes,
             range: 5...180,
             step: 1,
-            style: .premiumDemo
+            style: .immersiveArc
         )
         .padding()
         .background(Color.black)
@@ -100,6 +100,11 @@ TimerWheelPicker(
 - `layout`
 - `typography`
 
+#### Presets
+
+- `.premiumDemo`: Keeps the original thicker arc treatment. / 保留原先更厚重的圆弧视觉。
+- `.immersiveArc`: Uses the new full-width shallow arc treatment that matches the bundled immersive demo. / 使用新的全宽浅弧视觉，并与仓库内置沉浸式示例保持一致。
+
 #### Colors
 
 ```swift
@@ -122,6 +127,7 @@ TimerWheelPickerStyle.Colors(
 
 ```swift
 TimerWheelPickerStyle.Layout(
+    arcProfile: .classic,
     dialHeight: 214,
     dialScale: 0.86,
     ringThickness: 44,
@@ -138,6 +144,7 @@ TimerWheelPickerStyle.Layout(
 )
 ```
 
+- `arcProfile`: Arc geometry profile. Use `.classic` for the legacy thick ring or `.fullWidthShallow` for the immersive full-width arc. / 圆弧几何轮廓。`.classic` 为旧版厚环，`.fullWidthShallow` 为沉浸式全宽浅弧。
 - `dialHeight`: Base wheel height before scaling. / 缩放前的基础高度。
 - `dialScale`: Overall wheel scale. / wheel 整体缩放比例。
 - `ringThickness`: Main ring thickness. / 主圆环厚度。
@@ -163,8 +170,8 @@ TimerWheelPickerStyle.Typography(
 ```
 
 - `valueFontSize`: Main numeric font size. / 数值字号。
-- `unitFontSize`: Unit label font size. / 单位字号。
-- `unitLabel`: Unit label shown below the value. / 数值下方显示的单位文字。
+- `unitFontSize`: Caption font size shown below the value. / 数值下方说明文字的字号。
+- `unitLabel`: Caption shown below the value; this can be a unit or a mood label. / 数值下方显示的说明文字；它既可以是单位，也可以是状态标签。
 
 ## Customization Example
 
@@ -184,16 +191,17 @@ struct CustomTimerView: View {
             valueGradient: Gradient(colors: [.white, .mint])
         ),
         layout: .init(
+            arcProfile: .fullWidthShallow,
             dialHeight: 196,
-            dialScale: 0.82,
-            ringThickness: 40,
-            indicatorHeight: 24,
-            tickWidth: 4
+            dialScale: 1,
+            ringThickness: 4,
+            indicatorDotSize: 18,
+            tickWidth: 2
         ),
         typography: .init(
             valueFontSize: 52,
             unitFontSize: 12,
-            unitLabel: "SEC"
+            unitLabel: "Focus"
         )
     )
 
@@ -212,7 +220,7 @@ struct CustomTimerView: View {
 
 - `Package.swift`: Swift Package manifest exporting `WheelPickerKit`. / 导出 `WheelPickerKit` 的 Swift Package 清单。
 - `Sources/WheelPickerKit/`: Shipped package source. / 实际分发的包源码。
-- `WheelPicker/`: Demo app source and tuning UI. / 示例应用源码与调参界面。
+- `WheelPicker/`: Demo app source and immersive app shell. / 示例应用源码与沉浸式应用外壳。
 - `WheelPicker.xcodeproj/`: Xcode project for local development and demo running. / 用于本地开发和运行示例的 Xcode 工程。
 
 ## Publishing Notes

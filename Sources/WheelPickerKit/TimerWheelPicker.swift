@@ -1,6 +1,6 @@
-// [IN]: SwiftUI, package-private wheel primitives, and timer-facing public-style configuration / SwiftUI、包内滚轮原语与面向计时器的 public 风格配置
-// [OUT]: Public timer wheel picker component exposing selection plus style entry points / 暴露选中值与样式入口的公开计时器滚轮组件
-// [POS]: Serve as the clean package API that app code imports for reuse / 作为应用侧导入复用的干净包 API
+// [IN]: SwiftUI, package-private arc wheel renderer, and timer-facing public style presets / SwiftUI、包内圆弧滚轮渲染器与面向计时器的公开样式预设
+// [OUT]: Public timer wheel picker API exposing selection, arc profiles, and reusable presets / 暴露选中值、圆弧轮廓与可复用预设的公开计时器选择器 API
+// [POS]: Keep the shipped package surface small while allowing classic and immersive arc skins / 保持包 API 精简，同时支持经典与沉浸式圆弧皮肤
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
 
@@ -36,6 +36,12 @@ public struct TimerWheelPickerStyle {
     }
 
     public struct Layout {
+        public enum ArcProfile: Sendable {
+            case classic
+            case fullWidthShallow
+        }
+
+        public var arcProfile: ArcProfile
         public var dialHeight: CGFloat
         public var dialScale: CGFloat
         public var ringThickness: CGFloat
@@ -51,6 +57,7 @@ public struct TimerWheelPickerStyle {
         public var smallTickRatio: CGFloat
 
         public init(
+            arcProfile: ArcProfile = .classic,
             dialHeight: CGFloat = 214,
             dialScale: CGFloat = 0.86,
             ringThickness: CGFloat = 44,
@@ -65,6 +72,7 @@ public struct TimerWheelPickerStyle {
             largeTickRatio: CGFloat = 0.68,
             smallTickRatio: CGFloat = 0.32
         ) {
+            self.arcProfile = arcProfile
             self.dialHeight = dialHeight
             self.dialScale = dialScale
             self.ringThickness = ringThickness
@@ -115,10 +123,50 @@ public struct TimerWheelPickerStyle {
         Self()
     }
 
+    public static var immersiveArc: Self {
+        Self(
+            colors: .init(
+                activeTint: .white,
+                inactiveTint: Color.white.opacity(0.16),
+                ringBackground: Color.white.opacity(0.08),
+                tickGradient: Gradient(colors: [
+                    Color.white.opacity(0.78),
+                    Color.white
+                ]),
+                valueGradient: Gradient(colors: [
+                    Color.white.opacity(0.92),
+                    Color.white
+                ])
+            ),
+            layout: .init(
+                arcProfile: .fullWidthShallow,
+                dialHeight: 346,
+                dialScale: 1,
+                ringThickness: 4,
+                ringBackgroundExtraWidth: 2,
+                indicatorHeight: 0,
+                indicatorWidth: 0,
+                indicatorDotSize: 18,
+                tickWidth: 2,
+                tickSlotWidth: 8,
+                gapBetweenTicks: 2,
+                largeTickFrequency: 10,
+                largeTickRatio: 0.9,
+                smallTickRatio: 0.52
+            ),
+            typography: .init(
+                valueFontSize: 108,
+                unitFontSize: 28,
+                unitLabel: "Relaxed"
+            )
+        )
+    }
+
     func makeWheelConfig() -> WheelPickerConfig {
         WheelPickerConfig(
             activeTint: colors.activeTint,
             inactiveTint: colors.inactiveTint,
+            arcProfile: layout.arcProfile,
             largeTickFrequency: layout.largeTickFrequency,
             strokeStyle: .init(lineWidth: layout.ringThickness, lineCap: .round, lineJoin: .round),
             backgroundLineWidth: layout.ringThickness + layout.ringBackgroundExtraWidth,
@@ -183,8 +231,12 @@ private struct TimerWheelPickerLabel: View {
     let style: TimerWheelPickerStyle
     let isScrolling: Bool
 
+    private var isImmersiveArc: Bool {
+        style.layout.arcProfile == .fullWidthShallow
+    }
+
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: isImmersiveArc ? 6 : 8) {
             Text(String(minutes))
                 .font(.system(size: style.typography.valueFontSize, weight: .bold, design: .rounded))
                 .monospacedDigit()
@@ -193,17 +245,17 @@ private struct TimerWheelPickerLabel: View {
                 .animation(.snappy(duration: 0.22), value: minutes)
                 .scaleEffect(isScrolling ? 0.985 : 1)
                 .animation(.easeOut(duration: 0.12), value: isScrolling)
-                .shadow(color: accent.opacity(0.32), radius: 18, y: 10)
+                .shadow(color: accent.opacity(isImmersiveArc ? 0.1 : 0.32), radius: isImmersiveArc ? 8 : 18, y: isImmersiveArc ? 2 : 10)
 
             Text(style.typography.unitLabel)
-                .font(.system(size: style.typography.unitFontSize, weight: .bold, design: .rounded))
-                .tracking(1.6)
-                .foregroundStyle(Color.white.opacity(0.7))
+                .font(.system(size: style.typography.unitFontSize, weight: isImmersiveArc ? .medium : .bold, design: .rounded))
+                .tracking(isImmersiveArc ? 0 : 1.6)
+                .foregroundStyle(Color.white.opacity(isImmersiveArc ? 0.88 : 0.7))
         }
         .frame(maxHeight: .infinity)
-        .padding(.top, 26)
+        .padding(.top, isImmersiveArc ? 0 : 26)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Timer")
-        .accessibilityValue("\(minutes) minutes")
+        .accessibilityLabel("Selected value")
+        .accessibilityValue(style.typography.unitLabel.isEmpty ? "\(minutes)" : "\(minutes) \(style.typography.unitLabel)")
     }
 }
