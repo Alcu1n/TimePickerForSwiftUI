@@ -1,6 +1,6 @@
 // [IN]: SwiftUI, platform color interpolation, package haptic service, and full-bleed masked arc geometry / SwiftUI、平台颜色插值、包内触感服务与全宽遮罩圆弧几何
-// [OUT]: Package-private arc renderer with mirrored swipe direction, tiered tick marks, configurable viewport fade, wider drag hit regions, and arc-inside value placement / 提供镜像滑动方向、分级刻度线、可配置视口褪色、更宽拖动命中区与圆弧内数值定位的包内圆弧渲染器
-// [POS]: Keep the guide arc, tick tiers, and value label locked to one centered full-width geometry while style config drives color, length, fade range, and label lift / 让导向弧、分级刻度与数值标签锁定在同一条居中的全宽几何上，并通过样式配置驱动颜色、长度、褪色范围与数字上提
+// [OUT]: Package-private arc renderer with mirrored swipe direction, tiered tick marks, tick-synced shallow arc strokes, shared viewport fade, wider drag hit regions, and arc-inside value placement / 提供镜像滑动方向、分级刻度线、与刻度同步的浅弧线层、共享视口褪色、更宽拖动命中区与圆弧内数值定位的包内圆弧渲染器
+// [POS]: Keep the shallow arc stack, tick tiers, and value label locked to one centered full-width geometry while one style config drives shared color, length, fade range, and label lift / 让浅弧线层、分级刻度与数值标签锁定在同一条居中的全宽几何上，并通过同一个样式配置驱动共享颜色、长度、褪色范围与数字上提
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
 
@@ -86,6 +86,37 @@ struct WheelPickerConfig {
     func valueColor(for value: Int, within values: [Int]) -> Color {
         if let valueTextColor { return valueTextColor }
         return color(progress: progress(for: value, within: values), gradient: valueGradient)
+    }
+
+    func arcColor(forRelativeX relativeX: CGFloat, halfChord: CGFloat) -> Color {
+        let denominator = max(halfChord * 2, .leastNonzeroMagnitude)
+        let arcProgress = min(max((relativeX + halfChord) / denominator, 0), 1)
+        return color(progress: Double(arcProgress), gradient: tickGradient)
+    }
+
+    func viewportOpacity(forRelativeX relativeX: CGFloat, halfChord: CGFloat) -> CGFloat {
+        let clampedCenterOpacity = min(max(tickCenterOpacity, 0), 1)
+        let clampedEdgeOpacity = min(max(tickEdgeOpacity, 0), 1)
+        let distanceProgress = min(max(abs(relativeX) / max(halfChord, 0.001), 0), 1)
+        let fadeStart = min(max(tickFadeStartProgress, 0), 1)
+        let fadeEnd = min(max(tickFadeEndProgress, 0), 1)
+        let resolvedStart = min(fadeStart, fadeEnd)
+        let resolvedEnd = max(fadeStart, fadeEnd)
+
+        guard distanceProgress > resolvedStart else {
+            return CGFloat(clampedCenterOpacity)
+        }
+
+        guard distanceProgress < resolvedEnd else {
+            return CGFloat(clampedEdgeOpacity)
+        }
+
+        let denominator = max(resolvedEnd - resolvedStart, .leastNonzeroMagnitude)
+        let fadeProgress = (distanceProgress - resolvedStart) / denominator
+        let easedProgress = fadeProgress * fadeProgress
+        let opacity = clampedCenterOpacity
+            + ((clampedEdgeOpacity - clampedCenterOpacity) * easedProgress)
+        return CGFloat(opacity)
     }
 
     func tickColor(for tier: TickTier, value: Int, within values: [Int]) -> Color {
@@ -308,37 +339,6 @@ private struct WheelArcGeometry {
         abs(relativeX) <= halfChord ? 1 : 0
     }
 
-    func tickViewportOpacity(
-        forRelativeX relativeX: CGFloat,
-        centerOpacity: Double,
-        edgeOpacity: Double,
-        fadeStartProgress: Double,
-        fadeEndProgress: Double
-    ) -> CGFloat {
-        let clampedCenterOpacity = min(max(centerOpacity, 0), 1)
-        let clampedEdgeOpacity = min(max(edgeOpacity, 0), 1)
-        let distanceProgress = min(max(abs(relativeX) / max(halfChord, 0.001), 0), 1)
-        let fadeStart = min(max(fadeStartProgress, 0), 1)
-        let fadeEnd = min(max(fadeEndProgress, 0), 1)
-        let resolvedStart = min(fadeStart, fadeEnd)
-        let resolvedEnd = max(fadeStart, fadeEnd)
-
-        guard distanceProgress > resolvedStart else {
-            return CGFloat(clampedCenterOpacity)
-        }
-
-        guard distanceProgress < resolvedEnd else {
-            return CGFloat(clampedEdgeOpacity)
-        }
-
-        let denominator = max(resolvedEnd - resolvedStart, .leastNonzeroMagnitude)
-        let fadeProgress = (distanceProgress - resolvedStart) / denominator
-        let easedProgress = fadeProgress * fadeProgress
-        let opacity = clampedCenterOpacity
-            + ((clampedEdgeOpacity - clampedCenterOpacity) * easedProgress)
-        return CGFloat(opacity)
-    }
-
     func makeArcPath() -> Path {
         var path = Path()
         let samples = config.arcProfile == .fullWidthShallow ? 220 : 140
@@ -454,26 +454,88 @@ struct WheelPickerView<Label: View>: View {
     }
 
     private func backgroundArc(geometry: WheelArcGeometry) -> some View {
-        geometry.makeArcPath()
-            .stroke(
-                config.backgroundColor,
-                style: StrokeStyle(
-                    lineWidth: config.backgroundLineWidth,
-                    lineCap: .round,
-                    lineJoin: .round
-                )
-            )
-            .overlay {
-                geometry.makeArcPath()
-                    .stroke(config.inactiveTint, style: config.strokeStyle)
-                    .blur(radius: config.arcProfile == .classic ? 0.5 : 0)
+        Group {
+            if config.arcProfile == .fullWidthShallow {
+                ZStack {
+                    tickSyncedArcStroke(
+                        geometry: geometry,
+                        style: StrokeStyle(
+                            lineWidth: config.backgroundLineWidth,
+                            lineCap: .round,
+                            lineJoin: .round
+                        )
+                    ) { _ in
+                        config.backgroundColor
+                    }
+                    guideArc(geometry: geometry)
+                }
+            } else {
+                ZStack {
+                    geometry.makeArcPath()
+                        .stroke(
+                            config.backgroundColor,
+                            style: StrokeStyle(
+                                lineWidth: config.backgroundLineWidth,
+                                lineCap: .round,
+                                lineJoin: .round
+                            )
+                        )
+                    guideArc(geometry: geometry)
+                }
             }
-            .shadow(
-                color: config.arcProfile == .fullWidthShallow
-                    ? Color.black.opacity(0.16) : config.backgroundColor.opacity(0.4),
-                radius: config.arcProfile == .fullWidthShallow ? 10 : 24,
-                y: config.arcProfile == .fullWidthShallow ? 2 : 16
-            )
+        }
+        .shadow(
+            color: config.arcProfile == .fullWidthShallow
+                ? Color.black.opacity(0.16) : config.backgroundColor.opacity(0.4),
+            radius: config.arcProfile == .fullWidthShallow ? 10 : 24,
+            y: config.arcProfile == .fullWidthShallow ? 2 : 16
+        )
+    }
+
+    @ViewBuilder
+    private func guideArc(geometry: WheelArcGeometry) -> some View {
+        if config.arcProfile == .fullWidthShallow {
+            tickSyncedArcStroke(geometry: geometry, style: config.strokeStyle) { relativeX in
+                config.arcColor(forRelativeX: relativeX, halfChord: geometry.halfChord)
+            }
+        } else {
+            geometry.makeArcPath()
+                .stroke(config.inactiveTint, style: config.strokeStyle)
+                .blur(radius: 0.5)
+        }
+    }
+
+    private func tickSyncedArcStroke(
+        geometry: WheelArcGeometry,
+        style: StrokeStyle,
+        color: @escaping (CGFloat) -> Color
+    ) -> some View {
+        Canvas { context, _ in
+            let samples = 220
+
+            for index in 0..<samples {
+                let startProgress = CGFloat(index) / CGFloat(samples)
+                let endProgress = CGFloat(index + 1) / CGFloat(samples)
+                let startX = -geometry.halfChord + (geometry.chordWidth * startProgress)
+                let endX = -geometry.halfChord + (geometry.chordWidth * endProgress)
+                let midX = (startX + endX) / 2
+                let opacity = config.viewportOpacity(
+                    forRelativeX: midX,
+                    halfChord: geometry.halfChord
+                )
+                let resolvedColor = color(midX).opacity(opacity)
+
+                var segment = Path()
+                segment.move(to: geometry.pointOnArc(relativeX: startX))
+                segment.addLine(to: geometry.pointOnArc(relativeX: endX))
+
+                context.stroke(
+                    segment,
+                    with: .color(resolvedColor),
+                    style: style
+                )
+            }
+        }
     }
 
     private func wheelPickerScrollView(size: CGSize, geometry: WheelArcGeometry) -> some View {
@@ -540,12 +602,9 @@ struct WheelPickerView<Label: View>: View {
                 outwardOffset: tickOffset
             )
             let visibilityOpacity = geometry.tickOpacity(forRelativeX: relativeX)
-            let viewportOpacity = geometry.tickViewportOpacity(
+            let viewportOpacity = config.viewportOpacity(
                 forRelativeX: relativeX,
-                centerOpacity: config.tickCenterOpacity,
-                edgeOpacity: config.tickEdgeOpacity,
-                fadeStartProgress: config.tickFadeStartProgress,
-                fadeEndProgress: config.tickFadeEndProgress
+                halfChord: geometry.halfChord
             )
 
             Group {

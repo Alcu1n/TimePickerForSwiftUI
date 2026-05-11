@@ -1,6 +1,6 @@
 // [IN]: SwiftUI, package-private full-bleed arc renderer, and timer-facing public style presets / SwiftUI、包内全宽圆弧渲染器与面向计时器的公开样式预设
-// [OUT]: Public timer wheel picker API exposing selection, initial selection fallback, readable style aliases, tiered tick styling, viewport fade range, typography colors, and immersive preset contract / 暴露选中值、初始默认值回退、易读样式别名、分级刻度样式、视口褪色范围、排版颜色与沉浸式预设契约的公开计时器选择器 API
-// [POS]: Keep the shipped package surface small while letting consumers customize the arc, tick tiers, fade timing, value placement, caption styling, and initial selection through one style object / 保持包 API 精简，同时让接入方通过单一样式对象安全定制圆弧、刻度层级、褪色时机、数字位置、底部文案样式与初始默认值
+// [OUT]: Public timer wheel picker API exposing selection, initial selection fallback, readable style aliases, yellow-major immersive defaults, viewport fade range, typography colors, and preset contracts / 暴露选中值、初始默认值回退、易读样式别名、黄色长刻度沉浸式默认值、视口褪色范围、排版颜色与预设契约的公开计时器选择器 API
+// [POS]: Keep the shipped package surface small while letting consumers customize the arc, tick tiers, fade timing, lifted value placement, caption styling, and initial selection through one style object / 保持包 API 精简，同时让接入方通过单一样式对象安全定制圆弧、刻度层级、褪色时机、上提数字位置、底部文案样式与初始默认值
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
 
@@ -193,8 +193,11 @@ public struct TimerWheelPickerStyle {
                 ]),
                 tickColor: .white,
                 tickCenterOpacity: 1,
-                tickEdgeOpacity: 0.2,
+                tickEdgeOpacity: 0,
+                tickFadeStartProgress: 0.2,
+                tickFadeEndProgress: 0.8,
                 captionTextColor: Color.white.opacity(0.88),
+                largeTickColor: .yellow,
                 valueGradient: Gradient(colors: [
                     Color.white.opacity(0.92),
                     Color.white
@@ -217,12 +220,12 @@ public struct TimerWheelPickerStyle {
                 largeTickRatio: 0.78,
                 mediumTickRatio: 0.58,
                 smallTickRatio: 0.42,
-                valueLabelOffsetY: -72
+                valueLabelOffsetY: -152
             ),
             typography: .init(
-                valueFontSize: 108,
+                valueFontSize: 52,
                 unitFontSize: 28,
-                unitLabel: "relaxed"
+                unitLabel: "MIN"
             )
         )
     }

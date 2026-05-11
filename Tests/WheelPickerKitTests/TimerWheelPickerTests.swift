@@ -1,5 +1,5 @@
 // [IN]: XCTest, SwiftUI bindings, and WheelPickerKit public picker-style contracts / XCTest、SwiftUI 绑定与 WheelPickerKit 公开选择器样式契约
-// [OUT]: Deterministic package tests for presets, immersive default style, initial selection fallback, exposed aliases, viewport fade controls, tiered tick colors, typography colors, and binding-based selection flow / 用于预设、默认沉浸式样式、初始默认值回退、公开别名、视口褪色控制、分级刻度颜色、排版颜色与绑定式选值流的确定性包测试
+// [OUT]: Deterministic package tests for presets, yellow-major immersive default style, initial selection fallback, exposed aliases, shared arc/tick viewport fade controls, tiered tick colors, typography colors, and binding flow / 用于预设、黄色长刻度沉浸式默认样式、初始默认值回退、公开别名、圆弧与刻度共享视口褪色控制、分级刻度颜色、排版颜色与绑定流的确定性包测试
 // [POS]: Lock down the distributable API while allowing the renderer internals to evolve and the default style contract to stay explicit / 锁定可分发 API，同时允许渲染器内部继续演进并让默认样式契约保持明确
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
@@ -26,15 +26,17 @@ final class TimerWheelPickerTests: XCTestCase {
         XCTAssertEqual(style.layout.largeTickFrequency, 10)
         XCTAssertEqual(style.layout.mediumTickFrequency, 5)
         XCTAssertEqual(style.colors.tickCenterOpacity, 1, accuracy: 0.001)
-        XCTAssertEqual(style.colors.tickEdgeOpacity, 0.2, accuracy: 0.001)
-        XCTAssertEqual(style.colors.tickFadeStartProgress, 0, accuracy: 0.001)
-        XCTAssertEqual(style.colors.tickFadeEndProgress, 1, accuracy: 0.001)
+        XCTAssertEqual(style.colors.tickEdgeOpacity, 0, accuracy: 0.001)
+        XCTAssertEqual(style.colors.tickFadeStartProgress, 0.2, accuracy: 0.001)
+        XCTAssertEqual(style.colors.tickFadeEndProgress, 0.8, accuracy: 0.001)
+        XCTAssertEqual(style.colors.largeTickColor, .yellow)
         XCTAssertEqual(style.layout.tickWidth, 1.9, accuracy: 0.001)
         XCTAssertEqual(style.layout.largeTickRatio, 0.78, accuracy: 0.001)
         XCTAssertEqual(style.layout.mediumTickRatio, 0.58, accuracy: 0.001)
         XCTAssertEqual(style.layout.smallTickRatio, 0.42, accuracy: 0.001)
-        XCTAssertEqual(style.layout.valueLabelOffsetY, -72, accuracy: 0.001)
-        XCTAssertEqual(style.typography.unitLabel, "relaxed")
+        XCTAssertEqual(style.layout.valueLabelOffsetY, -152, accuracy: 0.001)
+        XCTAssertEqual(style.typography.valueFontSize, 52, accuracy: 0.001)
+        XCTAssertEqual(style.typography.unitLabel, "MIN")
     }
 
     func testCustomStyleKeepsExposedLayoutAndTypographyValues() {
@@ -118,6 +120,23 @@ final class TimerWheelPickerTests: XCTestCase {
         XCTAssertEqual(config.smallTickColor, .blue)
     }
 
+    func testGuideArcUsesTickColorAndViewportFadeProgress() {
+        let red = Color(.sRGB, red: 1, green: 0, blue: 0, opacity: 1)
+        let colors = TimerWheelPickerStyle.Colors(
+            tickColor: red,
+            tickCenterOpacity: 1,
+            tickEdgeOpacity: 0,
+            tickFadeStartProgress: 0.25,
+            tickFadeEndProgress: 0.75
+        )
+        let config = TimerWheelPickerStyle(colors: colors).makeWheelConfig()
+
+        XCTAssertEqual(config.arcColor(forRelativeX: 0, halfChord: 100), red)
+        XCTAssertEqual(config.viewportOpacity(forRelativeX: 0, halfChord: 100), 1, accuracy: 0.001)
+        XCTAssertEqual(config.viewportOpacity(forRelativeX: 50, halfChord: 100), 0.75, accuracy: 0.001)
+        XCTAssertEqual(config.viewportOpacity(forRelativeX: 80, halfChord: 100), 0, accuracy: 0.001)
+    }
+
     @MainActor
     func testPickerInitializerExposesRangeStepAndStyle() {
         let selection = Binding.constant(45)
@@ -131,7 +150,8 @@ final class TimerWheelPickerTests: XCTestCase {
         XCTAssertEqual(picker.step, 5)
         XCTAssertEqual(picker.initialSelection, 30)
         XCTAssertEqual(picker.style.layout.arcProfile, .fullWidthShallow)
-        XCTAssertEqual(picker.style.typography.unitLabel, "relaxed")
+        XCTAssertEqual(picker.style.colors.largeTickColor, .yellow)
+        XCTAssertEqual(picker.style.typography.unitLabel, "MIN")
     }
 
     @MainActor
