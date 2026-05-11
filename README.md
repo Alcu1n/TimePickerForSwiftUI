@@ -77,8 +77,8 @@ struct FocusTimerView: View {
 }
 ```
 
-`TimerWheelPicker` now defaults to `.immersiveArc`. Only pass `style` when you want to override that default. In the immersive preset, swiping left increases the value, and the visible guide arc defaults to pure white at `20%` opacity.  
-`TimerWheelPicker` 现在默认就是 `.immersiveArc`。只有在你想覆盖默认样式时才需要显式传入 `style`。在沉浸式预设中，手指左滑会让数值增加，而可见导向弧默认是纯白 `20%` 透明度。
+`TimerWheelPicker` now defaults to `.immersiveArc`. Only pass `style` when you want to override that default. In the immersive preset, swiping left increases the value, the visible guide arc defaults to pure white at `20%` opacity, and the value/caption block sits inside the shallow arc.
+`TimerWheelPicker` 现在默认就是 `.immersiveArc`。只有在你想覆盖默认样式时才需要显式传入 `style`。在沉浸式预设中，手指左滑会让数值增加，可见导向弧默认是纯白 `20%` 透明度，数值与文案区块位于浅弧内侧。
 
 ## Selection Output
 
@@ -171,9 +171,12 @@ In this example, `selectedMinutes` starts at `0`, which is outside the valid ste
 - `layout`
 - `typography`
 
+The `TimerWheelPicker` initializer and the three style groups below are the complete customization surface. If a public knob is added, this section must be updated in the same change.
+`TimerWheelPicker` 初始化器和下面三个 style 分组就是完整的自定义入口。只要新增公开参数，本节必须在同一次变更中同步更新。
+
 #### Presets
 
-- `.immersiveArc`: Default as of `2.0.0`; uses the full-width shallow arc treatment with mirrored swipe direction, tighter value placement, a `20%` white guide arc, and metallic ratchet feedback. / 自 `2.0.0` 起成为默认值；使用全宽浅弧视觉，带镜像滑动方向、更贴近弧线的数字布局、`20%` 白色导向弧与金属棘轮反馈。
+- `.immersiveArc`: Default as of `2.0.0`; uses the full-width shallow arc treatment with mirrored swipe direction, arc-inside value placement, three tick tiers, a `20%` white guide arc, and metallic ratchet feedback. / 自 `2.0.0` 起成为默认值；使用全宽浅弧视觉，带镜像滑动方向、圆弧内数字布局、三档刻度、`20%` 白色导向弧与金属棘轮反馈。
 - `.premiumDemo`: Legacy opt-in preset that keeps the original thicker wheel treatment. / 旧样式的显式兼容预设，保留原始更厚重的滚轮视觉。
 
 ### Migration from `1.x`
@@ -188,10 +191,10 @@ If you are upgrading from `1.x`, the only behavioral default that changed is the
 The following knobs are public and intended for app-level customization.  
 以下参数都已经是公开 API，设计目标就是让引入该组件的 app 进行高度定制。
 
-### 1. Tick Color and Edge Fade
+### 1. Tick Color, Tiers, and Edge Fade
 
-For the immersive arc, the default treatment is now center-white ticks that fade toward the screen edges. You control the base color with `tickColor`, the center opacity with `tickCenterOpacity`, and the edge fade floor with `tickEdgeOpacity`.  
-对于沉浸式浅弧，当前默认样式已经改为“中间纯白、向屏幕边缘逐渐褪色”的刻度。你可以用 `tickColor` 控制基础颜色，用 `tickCenterOpacity` 控制中心透明度，用 `tickEdgeOpacity` 控制边缘最低透明度。
+For the immersive arc, the default treatment is center-white ticks that fade toward the screen edges. You control the base color with `tickColor`, the center opacity with `tickCenterOpacity`, the edge fade floor with `tickEdgeOpacity`, the fade range with `tickFadeStartProgress` and `tickFadeEndProgress`, and each tier with `largeTickColor`, `mediumTickColor`, and `smallTickColor`.
+对于沉浸式浅弧，默认样式是“中间纯白、向屏幕边缘逐渐褪色”的刻度。你可以用 `tickColor` 控制基础颜色，用 `tickCenterOpacity` 控制中心透明度，用 `tickEdgeOpacity` 控制边缘最低透明度，用 `tickFadeStartProgress` 与 `tickFadeEndProgress` 控制褪色范围，并用 `largeTickColor`、`mediumTickColor`、`smallTickColor` 分别控制三档刻度颜色。
 
 Use `tickColor` when you want a single solid tick color.  
 如果你只想要单色刻度，请使用 `tickColor`。
@@ -200,7 +203,22 @@ Use `tickColor` when you want a single solid tick color.
 let colors = TimerWheelPickerStyle.Colors(
     tickColor: .white,
     tickCenterOpacity: 1,
-    tickEdgeOpacity: 0.2
+    tickEdgeOpacity: 0.2,
+    tickFadeStartProgress: 0,
+    tickFadeEndProgress: 1
+)
+```
+
+`tickFadeStartProgress` and `tickFadeEndProgress` are measured from viewport center (`0`) to viewport edge (`1`). To make ticks reach `0` opacity before the screen edge, set `tickEdgeOpacity` to `0` and move `tickFadeEndProgress` inward.
+`tickFadeStartProgress` 和 `tickFadeEndProgress` 从视口中心 `0` 量到视口边缘 `1`。如果希望刻度线在到达屏幕边缘前就变成 `0` 透明度，把 `tickEdgeOpacity` 设为 `0`，并把 `tickFadeEndProgress` 往内收。
+
+```swift
+let colors = TimerWheelPickerStyle.Colors(
+    tickColor: .white,
+    tickCenterOpacity: 1,
+    tickEdgeOpacity: 0,
+    tickFadeStartProgress: 0.68,
+    tickFadeEndProgress: 0.84
 )
 ```
 
@@ -213,8 +231,11 @@ let colors = TimerWheelPickerStyle.Colors(
 )
 ```
 
-`tickCenterOpacity` and `tickEdgeOpacity` still apply on top of that gradient, based on the tick's distance from the viewport center.  
-`tickCenterOpacity` 和 `tickEdgeOpacity` 仍会叠加在该渐变之上，并根据刻度距离视口中心的位置生效。
+`tickCenterOpacity`, `tickEdgeOpacity`, and the fade range still apply on top of that gradient, based on the tick's distance from the viewport center.
+`tickCenterOpacity`、`tickEdgeOpacity` 和褪色范围仍会叠加在该渐变之上，并根据刻度距离视口中心的位置生效。
+
+Long ticks win over medium ticks when both frequencies match; with the immersive defaults, every 10th tick is long, every 5th non-long tick is medium, and all others are short.
+当长刻度和中刻度频率同时命中时，长刻度优先。沉浸式默认值中，每第 10 个刻度是长刻度，每第 5 个非长刻度是中刻度，其余是短刻度。
 
 ### 2. Guide Arc Color
 
@@ -229,26 +250,32 @@ colors.guideArcTint = Color.white.opacity(0.2)
 `inactiveTint` is still available for compatibility; `guideArcTint` is just the readable alias.  
 `inactiveTint` 仍然保留以兼容旧写法；`guideArcTint` 只是更易懂的别名。
 
-### 3. Numeric Font Size
+### 3. Numeric and Caption Typography
 
-Use `typography.valueFontSize` to control the large numeric text size.  
-使用 `typography.valueFontSize` 控制中间大数字字号。
+Use `typography.valueFontSize`, `typography.unitFontSize`, `colors.valueTextColor`, and `colors.captionTextColor` to control numeric and caption appearance. If `valueTextColor` is `nil`, the numeric value still uses `valueGradient`.
+使用 `typography.valueFontSize`、`typography.unitFontSize`、`colors.valueTextColor` 和 `colors.captionTextColor` 控制数字与文案外观。如果 `valueTextColor` 为 `nil`，数字仍使用 `valueGradient`。
 
 ```swift
+let colors = TimerWheelPickerStyle.Colors(
+    valueTextColor: .white,
+    captionTextColor: .white.opacity(0.86)
+)
+
 let typography = TimerWheelPickerStyle.Typography(
-    valueFontSize: 96
+    valueFontSize: 96,
+    unitFontSize: 22
 )
 ```
 
 ### 4. Numeric Vertical Position
 
-Use `layout.valueLabelOffsetY` to move the large value and its caption vertically. Negative values move the label upward; positive values move it downward.  
-使用 `layout.valueLabelOffsetY` 调整大数字和底部文案的垂直位置。负值向上移动，正值向下移动。
+Use `layout.valueLabelOffsetY` to move the large value and its caption vertically. Negative values move the label upward; the immersive default uses `-72` so the value block sits inside the shallow arc with padding.
+使用 `layout.valueLabelOffsetY` 调整大数字和底部文案的垂直位置。负值向上移动；沉浸式默认值使用 `-72`，让数值区块带 padding 地位于浅弧内侧。
 
 ```swift
 let layout = TimerWheelPickerStyle.Layout(
     arcProfile: .fullWidthShallow,
-    valueLabelOffsetY: -34
+    valueLabelOffsetY: -72
 )
 ```
 
@@ -259,7 +286,7 @@ Use `captionText` to customize the bottom text shown under the value.
 
 ```swift
 var typography = TimerWheelPickerStyle.Typography()
-typography.captionText = "Relaxed"
+typography.captionText = "relaxed"
 ```
 
 `unitLabel` is still available for compatibility; `captionText` is the clearer alias because the text may be a mood label instead of a unit.  
@@ -278,6 +305,13 @@ TimerWheelPickerStyle.Colors(
     tickColor: .white,
     tickCenterOpacity: 1,
     tickEdgeOpacity: 0.2,
+    tickFadeStartProgress: 0,
+    tickFadeEndProgress: 1,
+    valueTextColor: nil,
+    captionTextColor: .white.opacity(0.88),
+    largeTickColor: nil,
+    mediumTickColor: nil,
+    smallTickColor: nil,
     valueGradient: Gradient(colors: [.white.opacity(0.92), .white])
 )
 ```
@@ -290,6 +324,13 @@ TimerWheelPickerStyle.Colors(
 - `tickColor`: Solid tick color override for single-color ticks. / 单色刻度的直接覆盖色。
 - `tickCenterOpacity`: Center opacity of the tick band in viewport space. / 刻度带在视口中心位置的透明度。
 - `tickEdgeOpacity`: Edge opacity floor of the tick band in viewport space. / 刻度带在视口边缘位置的最低透明度。
+- `tickFadeStartProgress`: Distance from viewport center where tick opacity starts fading; `0...1`. / 刻度透明度开始褪色的位置，按视口中心到边缘的距离计，范围 `0...1`。
+- `tickFadeEndProgress`: Distance from viewport center where tick opacity reaches `tickEdgeOpacity`; `0...1`. / 刻度透明度到达 `tickEdgeOpacity` 的位置，按视口中心到边缘的距离计，范围 `0...1`。
+- `valueTextColor`: Optional solid numeric text color; falls back to `valueGradient` when nil. / 可选的数字文字单色；为 nil 时回退到 `valueGradient`。
+- `captionTextColor`: Bottom caption text color. / 底部文案文字颜色。
+- `largeTickColor`: Optional major tick color override. / 可选的长刻度颜色覆盖。
+- `mediumTickColor`: Optional middle tick color override. / 可选的中刻度颜色覆盖。
+- `smallTickColor`: Optional minor tick color override. / 可选的短刻度颜色覆盖。
 - `valueGradient`: Numeric value color mapping. / 中央数值颜色映射。
 
 ### `TimerWheelPickerStyle.Layout`
@@ -304,13 +345,15 @@ TimerWheelPickerStyle.Layout(
     indicatorHeight: 0,
     indicatorWidth: 0,
     indicatorDotSize: 16,
-    tickWidth: 1.6,
+    tickWidth: 1.9,
     tickSlotWidth: 8,
     gapBetweenTicks: 2,
     largeTickFrequency: 10,
-    largeTickRatio: 0.9,
-    smallTickRatio: 0.52,
-    valueLabelOffsetY: -34
+    mediumTickFrequency: 5,
+    largeTickRatio: 0.78,
+    mediumTickRatio: 0.58,
+    smallTickRatio: 0.42,
+    valueLabelOffsetY: -72
 )
 ```
 
@@ -326,7 +369,9 @@ TimerWheelPickerStyle.Layout(
 - `tickSlotWidth`: Horizontal space reserved per tick. / 每个刻度的水平槽宽。
 - `gapBetweenTicks`: Additional spacing adjustment between ticks. / 刻度之间的额外间距修正。
 - `largeTickFrequency`: Major tick frequency. / 主刻度频率。
+- `mediumTickFrequency`: Middle tick frequency; long ticks take precedence. / 中刻度频率；长刻度优先。
 - `largeTickRatio`: Major tick height ratio. / 主刻度高度比例。
+- `mediumTickRatio`: Middle tick height ratio. / 中刻度高度比例。
 - `smallTickRatio`: Minor tick height ratio. / 次刻度高度比例。
 - `valueLabelOffsetY`: Vertical offset applied to the value label block. Negative lifts it upward. / 作用在数值标签区块上的垂直偏移。负值表示继续上提。
 
@@ -336,7 +381,7 @@ TimerWheelPickerStyle.Layout(
 TimerWheelPickerStyle.Typography(
     valueFontSize: 108,
     unitFontSize: 28,
-    unitLabel: "Relaxed"
+    unitLabel: "relaxed"
 )
 ```
 
@@ -360,6 +405,13 @@ struct CustomWheelExample: View {
             tickColor: .white,
             tickCenterOpacity: 1,
             tickEdgeOpacity: 0.2,
+            tickFadeStartProgress: 0,
+            tickFadeEndProgress: 1,
+            valueTextColor: .white,
+            captionTextColor: .white.opacity(0.84),
+            largeTickColor: .white,
+            mediumTickColor: .white.opacity(0.82),
+            smallTickColor: .white.opacity(0.58),
             valueGradient: Gradient(colors: [.white, .white.opacity(0.9)])
         )
         colors.guideArcTint = Color.white.opacity(0.2)
@@ -367,7 +419,7 @@ struct CustomWheelExample: View {
         var typography = TimerWheelPickerStyle.Typography(
             valueFontSize: 92,
             unitFontSize: 20,
-            unitLabel: "Relaxed"
+            unitLabel: "relaxed"
         )
         typography.captionText = "Wind Up"
 
@@ -380,13 +432,15 @@ struct CustomWheelExample: View {
                 ringThickness: 2,
                 ringBackgroundExtraWidth: 1,
                 indicatorDotSize: 14,
-                tickWidth: 1.4,
+                tickWidth: 1.9,
                 tickSlotWidth: 8,
                 gapBetweenTicks: 2,
                 largeTickFrequency: 10,
-                largeTickRatio: 0.88,
-                smallTickRatio: 0.5,
-                valueLabelOffsetY: -34
+                mediumTickFrequency: 5,
+                largeTickRatio: 0.78,
+                mediumTickRatio: 0.58,
+                smallTickRatio: 0.42,
+                valueLabelOffsetY: -72
             ),
             typography: typography
         )

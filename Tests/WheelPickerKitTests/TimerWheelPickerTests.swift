@@ -1,5 +1,5 @@
 // [IN]: XCTest, SwiftUI bindings, and WheelPickerKit public picker-style contracts / XCTest、SwiftUI 绑定与 WheelPickerKit 公开选择器样式契约
-// [OUT]: Deterministic package tests for presets, immersive default style, initial selection fallback, exposed aliases, tick-fade knobs, guide-arc defaults, and binding-based selection flow / 用于预设、默认沉浸式样式、初始默认值回退、公开别名、刻度褪色参数、导向弧默认值与绑定式选值流的确定性包测试
+// [OUT]: Deterministic package tests for presets, immersive default style, initial selection fallback, exposed aliases, viewport fade controls, tiered tick colors, typography colors, and binding-based selection flow / 用于预设、默认沉浸式样式、初始默认值回退、公开别名、视口褪色控制、分级刻度颜色、排版颜色与绑定式选值流的确定性包测试
 // [POS]: Lock down the distributable API while allowing the renderer internals to evolve and the default style contract to stay explicit / 锁定可分发 API，同时允许渲染器内部继续演进并让默认样式契约保持明确
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
@@ -24,16 +24,31 @@ final class TimerWheelPickerTests: XCTestCase {
         XCTAssertEqual(style.layout.arcProfile, .fullWidthShallow)
         XCTAssertEqual(style.layout.dialScale, 1, accuracy: 0.001)
         XCTAssertEqual(style.layout.largeTickFrequency, 10)
+        XCTAssertEqual(style.layout.mediumTickFrequency, 5)
         XCTAssertEqual(style.colors.tickCenterOpacity, 1, accuracy: 0.001)
         XCTAssertEqual(style.colors.tickEdgeOpacity, 0.2, accuracy: 0.001)
-        XCTAssertEqual(style.layout.valueLabelOffsetY, -34, accuracy: 0.001)
-        XCTAssertEqual(style.typography.unitLabel, "Relaxed")
+        XCTAssertEqual(style.colors.tickFadeStartProgress, 0, accuracy: 0.001)
+        XCTAssertEqual(style.colors.tickFadeEndProgress, 1, accuracy: 0.001)
+        XCTAssertEqual(style.layout.tickWidth, 1.9, accuracy: 0.001)
+        XCTAssertEqual(style.layout.largeTickRatio, 0.78, accuracy: 0.001)
+        XCTAssertEqual(style.layout.mediumTickRatio, 0.58, accuracy: 0.001)
+        XCTAssertEqual(style.layout.smallTickRatio, 0.42, accuracy: 0.001)
+        XCTAssertEqual(style.layout.valueLabelOffsetY, -72, accuracy: 0.001)
+        XCTAssertEqual(style.typography.unitLabel, "relaxed")
     }
 
     func testCustomStyleKeepsExposedLayoutAndTypographyValues() {
         let style = TimerWheelPickerStyle(
             colors: .init(ringBackground: .green),
-            layout: .init(arcProfile: .fullWidthShallow, dialHeight: 196, dialScale: 0.82, indicatorHeight: 24, tickWidth: 4),
+            layout: .init(
+                arcProfile: .fullWidthShallow,
+                dialHeight: 196,
+                dialScale: 0.82,
+                indicatorHeight: 24,
+                tickWidth: 4,
+                mediumTickFrequency: 4,
+                mediumTickRatio: 0.5
+            ),
             typography: .init(valueFontSize: 52, unitFontSize: 12, unitLabel: "SEC")
         )
 
@@ -42,6 +57,8 @@ final class TimerWheelPickerTests: XCTestCase {
         XCTAssertEqual(style.layout.dialScale, 0.82, accuracy: 0.001)
         XCTAssertEqual(style.layout.indicatorHeight, 24, accuracy: 0.001)
         XCTAssertEqual(style.layout.tickWidth, 4, accuracy: 0.001)
+        XCTAssertEqual(style.layout.mediumTickFrequency, 4)
+        XCTAssertEqual(style.layout.mediumTickRatio, 0.5, accuracy: 0.001)
         XCTAssertEqual(style.typography.unitLabel, "SEC")
     }
 
@@ -51,9 +68,11 @@ final class TimerWheelPickerTests: XCTestCase {
             tickGradient: Gradient(colors: [.blue, .purple]),
             tickColor: .red,
             tickCenterOpacity: 0.95,
-            tickEdgeOpacity: 0.28
+            tickEdgeOpacity: 0.28,
+            tickFadeStartProgress: 0.42,
+            tickFadeEndProgress: 0.86
         )
-        var typography = TimerWheelPickerStyle.Typography(unitLabel: "Relaxed")
+        var typography = TimerWheelPickerStyle.Typography(unitLabel: "relaxed")
         typography.captionText = "Wind Up"
         let style = TimerWheelPickerStyle(
             colors: colors,
@@ -66,12 +85,37 @@ final class TimerWheelPickerTests: XCTestCase {
         XCTAssertEqual(config.tickGradient.stops.count, 2)
         XCTAssertEqual(style.colors.tickCenterOpacity, 0.95, accuracy: 0.001)
         XCTAssertEqual(style.colors.tickEdgeOpacity, 0.28, accuracy: 0.001)
+        XCTAssertEqual(style.colors.tickFadeStartProgress, 0.42, accuracy: 0.001)
+        XCTAssertEqual(style.colors.tickFadeEndProgress, 0.86, accuracy: 0.001)
         XCTAssertEqual(style.layout.valueLabelOffsetY, -18, accuracy: 0.001)
         XCTAssertEqual(config.tickCenterOpacity, 0.95, accuracy: 0.001)
         XCTAssertEqual(config.tickEdgeOpacity, 0.28, accuracy: 0.001)
+        XCTAssertEqual(config.tickFadeStartProgress, 0.42, accuracy: 0.001)
+        XCTAssertEqual(config.tickFadeEndProgress, 0.86, accuracy: 0.001)
         XCTAssertEqual(config.valueLabelOffsetY, -18, accuracy: 0.001)
         XCTAssertEqual(style.typography.unitLabel, "Wind Up")
         XCTAssertEqual(style.typography.captionText, "Wind Up")
+    }
+
+    func testTieredTickAndTypographyColorsAreExposedInWheelConfig() {
+        let colors = TimerWheelPickerStyle.Colors(
+            tickColor: .gray,
+            valueTextColor: .yellow,
+            captionTextColor: .mint,
+            largeTickColor: .red,
+            mediumTickColor: .orange,
+            smallTickColor: .blue
+        )
+        let style = TimerWheelPickerStyle(colors: colors)
+        let config = style.makeWheelConfig()
+
+        XCTAssertNotNil(style.colors.valueTextColor)
+        XCTAssertEqual(style.colors.captionTextColor, .mint)
+        XCTAssertEqual(config.valueTextColor, .yellow)
+        XCTAssertEqual(config.captionTextColor, .mint)
+        XCTAssertEqual(config.largeTickColor, .red)
+        XCTAssertEqual(config.mediumTickColor, .orange)
+        XCTAssertEqual(config.smallTickColor, .blue)
     }
 
     @MainActor
@@ -87,7 +131,7 @@ final class TimerWheelPickerTests: XCTestCase {
         XCTAssertEqual(picker.step, 5)
         XCTAssertEqual(picker.initialSelection, 30)
         XCTAssertEqual(picker.style.layout.arcProfile, .fullWidthShallow)
-        XCTAssertEqual(picker.style.typography.unitLabel, "Relaxed")
+        XCTAssertEqual(picker.style.typography.unitLabel, "relaxed")
     }
 
     @MainActor
