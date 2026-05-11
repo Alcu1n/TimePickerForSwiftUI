@@ -1,6 +1,6 @@
 // [IN]: SwiftUI, package-private full-bleed arc renderer, and timer-facing public style presets / SwiftUI、包内全宽圆弧渲染器与面向计时器的公开样式预设
-// [OUT]: Public timer wheel picker API exposing selection, initial selection fallback, readable style aliases, viewport tick-fade controls, and immersive-by-default preset contract / 暴露选中值、初始默认值回退、易读样式别名、刻度视口褪色控制与默认沉浸式预设契约的公开计时器选择器 API
-// [POS]: Keep the shipped package surface small while letting consumers customize the arc, tick fade, value position, caption, and initial selection while defaulting new integrations to the immersive arc and its mirrored swipe semantics / 保持包 API 精简，同时让接入方安全自定义圆弧、刻度褪色、数字位置、底部文案与初始默认值，并让新接入默认落到沉浸式圆弧及其镜像滑动语义
+// [OUT]: Public timer wheel picker API exposing selection, initial selection fallback, readable style aliases, tiered tick styling, viewport fade range, typography colors, and immersive preset contract / 暴露选中值、初始默认值回退、易读样式别名、分级刻度样式、视口褪色范围、排版颜色与沉浸式预设契约的公开计时器选择器 API
+// [POS]: Keep the shipped package surface small while letting consumers customize the arc, tick tiers, fade timing, value placement, caption styling, and initial selection through one style object / 保持包 API 精简，同时让接入方通过单一样式对象安全定制圆弧、刻度层级、褪色时机、数字位置、底部文案样式与初始默认值
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
 
@@ -15,6 +15,13 @@ public struct TimerWheelPickerStyle {
         public var tickColor: Color?
         public var tickCenterOpacity: Double
         public var tickEdgeOpacity: Double
+        public var tickFadeStartProgress: Double
+        public var tickFadeEndProgress: Double
+        public var valueTextColor: Color?
+        public var captionTextColor: Color
+        public var largeTickColor: Color?
+        public var mediumTickColor: Color?
+        public var smallTickColor: Color?
         public var valueGradient: Gradient
 
         public var guideArcTint: Color {
@@ -33,6 +40,13 @@ public struct TimerWheelPickerStyle {
             tickColor: Color? = nil,
             tickCenterOpacity: Double = 1,
             tickEdgeOpacity: Double = 1,
+            tickFadeStartProgress: Double = 0,
+            tickFadeEndProgress: Double = 1,
+            valueTextColor: Color? = nil,
+            captionTextColor: Color = Color.white.opacity(0.7),
+            largeTickColor: Color? = nil,
+            mediumTickColor: Color? = nil,
+            smallTickColor: Color? = nil,
             valueGradient: Gradient = Gradient(colors: [
                 Color(hue: 0.58, saturation: 0.34, brightness: 0.92),
                 Color(hue: 0.88, saturation: 0.82, brightness: 1.0)
@@ -45,7 +59,18 @@ public struct TimerWheelPickerStyle {
             self.tickColor = tickColor
             self.tickCenterOpacity = tickCenterOpacity
             self.tickEdgeOpacity = tickEdgeOpacity
+            self.tickFadeStartProgress = tickFadeStartProgress
+            self.tickFadeEndProgress = tickFadeEndProgress
+            self.valueTextColor = valueTextColor
+            self.captionTextColor = captionTextColor
+            self.largeTickColor = largeTickColor
+            self.mediumTickColor = mediumTickColor
+            self.smallTickColor = smallTickColor
             self.valueGradient = valueGradient
+        }
+
+        func resolvedValueTextColor(fallback: Color) -> Color {
+            valueTextColor ?? fallback
         }
 
         var resolvedTickGradient: Gradient {
@@ -72,7 +97,9 @@ public struct TimerWheelPickerStyle {
         public var tickSlotWidth: CGFloat
         public var gapBetweenTicks: CGFloat
         public var largeTickFrequency: Int
+        public var mediumTickFrequency: Int
         public var largeTickRatio: CGFloat
+        public var mediumTickRatio: CGFloat
         public var smallTickRatio: CGFloat
         public var valueLabelOffsetY: CGFloat
 
@@ -89,7 +116,9 @@ public struct TimerWheelPickerStyle {
             tickSlotWidth: CGFloat = 5.2,
             gapBetweenTicks: CGFloat = -2.6,
             largeTickFrequency: Int = 5,
+            mediumTickFrequency: Int = 5,
             largeTickRatio: CGFloat = 0.68,
+            mediumTickRatio: CGFloat = 0.5,
             smallTickRatio: CGFloat = 0.32,
             valueLabelOffsetY: CGFloat = 0
         ) {
@@ -105,7 +134,9 @@ public struct TimerWheelPickerStyle {
             self.tickSlotWidth = tickSlotWidth
             self.gapBetweenTicks = gapBetweenTicks
             self.largeTickFrequency = largeTickFrequency
+            self.mediumTickFrequency = mediumTickFrequency
             self.largeTickRatio = largeTickRatio
+            self.mediumTickRatio = mediumTickRatio
             self.smallTickRatio = smallTickRatio
             self.valueLabelOffsetY = valueLabelOffsetY
         }
@@ -163,6 +194,7 @@ public struct TimerWheelPickerStyle {
                 tickColor: .white,
                 tickCenterOpacity: 1,
                 tickEdgeOpacity: 0.2,
+                captionTextColor: Color.white.opacity(0.88),
                 valueGradient: Gradient(colors: [
                     Color.white.opacity(0.92),
                     Color.white
@@ -177,18 +209,20 @@ public struct TimerWheelPickerStyle {
                 indicatorHeight: 0,
                 indicatorWidth: 0,
                 indicatorDotSize: 16,
-                tickWidth: 1.6,
+                tickWidth: 1.9,
                 tickSlotWidth: 8,
                 gapBetweenTicks: 2,
                 largeTickFrequency: 10,
-                largeTickRatio: 0.9,
-                smallTickRatio: 0.52,
-                valueLabelOffsetY: -34
+                mediumTickFrequency: 5,
+                largeTickRatio: 0.78,
+                mediumTickRatio: 0.58,
+                smallTickRatio: 0.42,
+                valueLabelOffsetY: -72
             ),
             typography: .init(
                 valueFontSize: 108,
                 unitFontSize: 28,
-                unitLabel: "Relaxed"
+                unitLabel: "relaxed"
             )
         )
     }
@@ -205,8 +239,17 @@ public struct TimerWheelPickerStyle {
             tickGradient: colors.resolvedTickGradient,
             tickCenterOpacity: colors.tickCenterOpacity,
             tickEdgeOpacity: colors.tickEdgeOpacity,
+            tickFadeStartProgress: colors.tickFadeStartProgress,
+            tickFadeEndProgress: colors.tickFadeEndProgress,
+            valueTextColor: colors.valueTextColor,
+            captionTextColor: colors.captionTextColor,
+            largeTickColor: colors.largeTickColor,
+            mediumTickColor: colors.mediumTickColor,
+            smallTickColor: colors.smallTickColor,
             valueGradient: colors.valueGradient,
+            mediumTickFrequency: layout.mediumTickFrequency,
             largeTickRatio: layout.largeTickRatio,
+            mediumTickRatio: layout.mediumTickRatio,
             smallTickRatio: layout.smallTickRatio,
             tickWidth: layout.tickWidth,
             tickSlotWidth: layout.tickSlotWidth,
@@ -276,6 +319,10 @@ private struct TimerWheelPickerLabel: View {
     let style: TimerWheelPickerStyle
     let isScrolling: Bool
 
+    private var resolvedAccent: Color {
+        style.colors.resolvedValueTextColor(fallback: accent)
+    }
+
     private var isImmersiveArc: Bool {
         style.layout.arcProfile == .fullWidthShallow
     }
@@ -285,17 +332,17 @@ private struct TimerWheelPickerLabel: View {
             Text(String(minutes))
                 .font(.system(size: style.typography.valueFontSize, weight: .bold, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(accent)
+                .foregroundStyle(resolvedAccent)
                 .contentTransition(.numericText())
                 .animation(.snappy(duration: 0.22), value: minutes)
                 .scaleEffect(isScrolling ? 0.985 : 1)
                 .animation(.easeOut(duration: 0.12), value: isScrolling)
-                .shadow(color: accent.opacity(isImmersiveArc ? 0.1 : 0.32), radius: isImmersiveArc ? 8 : 18, y: isImmersiveArc ? 2 : 10)
+                .shadow(color: resolvedAccent.opacity(isImmersiveArc ? 0.1 : 0.32), radius: isImmersiveArc ? 8 : 18, y: isImmersiveArc ? 2 : 10)
 
             Text(style.typography.unitLabel)
                 .font(.system(size: style.typography.unitFontSize, weight: isImmersiveArc ? .medium : .bold, design: .rounded))
                 .tracking(isImmersiveArc ? 0 : 1.6)
-                .foregroundStyle(Color.white.opacity(isImmersiveArc ? 0.88 : 0.7))
+                .foregroundStyle(style.colors.captionTextColor)
         }
         .frame(maxHeight: .infinity)
         .padding(.top, isImmersiveArc ? 0 : 26)

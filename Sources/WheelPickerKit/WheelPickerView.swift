@@ -1,6 +1,6 @@
 // [IN]: SwiftUI, platform color interpolation, package haptic service, and full-bleed masked arc geometry / SwiftUI、平台颜色插值、包内触感服务与全宽遮罩圆弧几何
-// [OUT]: Package-private arc renderer with mirrored immersive swipe direction, stable tick visibility, viewport-based tick fade, wider drag hit regions, and aggressively tightened value placement / 提供沉浸式镜像滑动方向、稳定刻度可见域、基于视口的刻度褪色、更宽拖动命中区与大幅收紧数值位置的包内圆弧渲染器
-// [POS]: Keep the guide arc, tick band, and value label locked to one centered full-width geometry while driving swipe direction, edge fade, and label lift from explicit style config / 让导向弧、刻度带与数值标签锁定在同一条居中的全宽几何上，并通过显式样式配置驱动滑动方向、边缘褪色与数字上提
+// [OUT]: Package-private arc renderer with mirrored swipe direction, tiered tick marks, configurable viewport fade, wider drag hit regions, and arc-inside value placement / 提供镜像滑动方向、分级刻度线、可配置视口褪色、更宽拖动命中区与圆弧内数值定位的包内圆弧渲染器
+// [POS]: Keep the guide arc, tick tiers, and value label locked to one centered full-width geometry while style config drives color, length, fade range, and label lift / 让导向弧、分级刻度与数值标签锁定在同一条居中的全宽几何上，并通过样式配置驱动颜色、长度、褪色范围与数字上提
 // Protocol: When updating me, sync this header + parent folder's .folder.md
 // 协议:更新本文件时,同步更新此头注释及所属文件夹的 .folder.md
 
@@ -15,6 +15,31 @@ import SwiftUI
 #endif
 
 private let wheelPickerViewportCoordinateSpace = "WheelPickerViewport"
+
+enum TickTier {
+    case large
+    case medium
+    case small
+
+    init(index: Int, largeFrequency: Int, mediumFrequency: Int) {
+        if Self.matches(index: index, frequency: largeFrequency) {
+            self = .large
+            return
+        }
+
+        if Self.matches(index: index, frequency: mediumFrequency) {
+            self = .medium
+            return
+        }
+
+        self = .small
+    }
+
+    private static func matches(index: Int, frequency: Int) -> Bool {
+        guard frequency > 0 else { return false }
+        return index % frequency == 0
+    }
+}
 
 struct WheelPickerConfig {
     var activeTint: Color = .primary
@@ -34,11 +59,20 @@ struct WheelPickerConfig {
     ])
     var tickCenterOpacity: Double = 1
     var tickEdgeOpacity: Double = 1
+    var tickFadeStartProgress: Double = 0
+    var tickFadeEndProgress: Double = 1
+    var valueTextColor: Color?
+    var captionTextColor: Color = Color.white.opacity(0.7)
+    var largeTickColor: Color?
+    var mediumTickColor: Color?
+    var smallTickColor: Color?
     var valueGradient: Gradient = Gradient(colors: [
         Color(hue: 0.58, saturation: 0.34, brightness: 0.92),
         Color(hue: 0.88, saturation: 0.82, brightness: 1.0),
     ])
+    var mediumTickFrequency: Int = 5
     var largeTickRatio: CGFloat = 0.65
+    var mediumTickRatio: CGFloat = 0.5
     var smallTickRatio: CGFloat = 0.4
     var tickWidth: CGFloat = 3
     var tickSlotWidth: CGFloat = 8
@@ -50,11 +84,40 @@ struct WheelPickerConfig {
     var indicatorDotSize: CGFloat = 12
 
     func valueColor(for value: Int, within values: [Int]) -> Color {
-        color(progress: progress(for: value, within: values), gradient: valueGradient)
+        if let valueTextColor { return valueTextColor }
+        return color(progress: progress(for: value, within: values), gradient: valueGradient)
     }
 
-    func tickColor(for value: Int, within values: [Int]) -> Color {
-        color(progress: progress(for: value, within: values), gradient: tickGradient)
+    func tickColor(for tier: TickTier, value: Int, within values: [Int]) -> Color {
+        switch tier {
+        case .large:
+            if let largeTickColor { return largeTickColor }
+        case .medium:
+            if let mediumTickColor { return mediumTickColor }
+        case .small:
+            if let smallTickColor { return smallTickColor }
+        }
+
+        return color(progress: progress(for: value, within: values), gradient: tickGradient)
+    }
+
+    func tickTier(for index: Int) -> TickTier {
+        TickTier(
+            index: index,
+            largeFrequency: largeTickFrequency,
+            mediumFrequency: mediumTickFrequency
+        )
+    }
+
+    func tickRatio(for tier: TickTier) -> CGFloat {
+        switch tier {
+        case .large:
+            return largeTickRatio
+        case .medium:
+            return mediumTickRatio
+        case .small:
+            return smallTickRatio
+        }
     }
 
     private func progress(for value: Int, within values: [Int]) -> Double {
@@ -201,25 +264,34 @@ private struct WheelArcGeometry {
         return Angle(radians: Double(atan2(vector.dy, vector.dx) - (.pi / 2)))
     }
 
-    func tickLength(isLargeTick: Bool) -> CGFloat {
-        let ratio = isLargeTick ? config.largeTickRatio : config.smallTickRatio
+    func tickLength(tier: TickTier) -> CGFloat {
+        let ratio = config.tickRatio(for: tier)
 
         switch config.arcProfile {
         case .classic:
             return config.strokeStyle.lineWidth * ratio
         case .fullWidthShallow:
             let baseLength = min(max(size.height * 0.06, 12), 18)
-            return max(baseLength * ratio, isLargeTick ? 10 : 5)
+            let minimumLength: CGFloat
+            switch tier {
+            case .large:
+                minimumLength = 8
+            case .medium:
+                minimumLength = 6
+            case .small:
+                minimumLength = 4
+            }
+            return max(baseLength * ratio, minimumLength)
         }
     }
 
-    func tickOffset(isLargeTick: Bool) -> CGFloat {
+    func tickOffset(tier: TickTier) -> CGFloat {
         switch config.arcProfile {
         case .classic:
-            return (tickLength(isLargeTick: isLargeTick) / 2)
+            return (tickLength(tier: tier) / 2)
                 + (config.strokeStyle.lineWidth * 0.04)
         case .fullWidthShallow:
-            return (tickLength(isLargeTick: isLargeTick) / 2) + (config.strokeStyle.lineWidth / 2)
+            return (tickLength(tier: tier) / 2) + (config.strokeStyle.lineWidth / 2)
                 + 12
         }
     }
@@ -236,13 +308,32 @@ private struct WheelArcGeometry {
         abs(relativeX) <= halfChord ? 1 : 0
     }
 
-    func tickViewportOpacity(forRelativeX relativeX: CGFloat, centerOpacity: Double, edgeOpacity: Double)
-        -> CGFloat
-    {
+    func tickViewportOpacity(
+        forRelativeX relativeX: CGFloat,
+        centerOpacity: Double,
+        edgeOpacity: Double,
+        fadeStartProgress: Double,
+        fadeEndProgress: Double
+    ) -> CGFloat {
         let clampedCenterOpacity = min(max(centerOpacity, 0), 1)
         let clampedEdgeOpacity = min(max(edgeOpacity, 0), 1)
         let distanceProgress = min(max(abs(relativeX) / max(halfChord, 0.001), 0), 1)
-        let easedProgress = distanceProgress * distanceProgress
+        let fadeStart = min(max(fadeStartProgress, 0), 1)
+        let fadeEnd = min(max(fadeEndProgress, 0), 1)
+        let resolvedStart = min(fadeStart, fadeEnd)
+        let resolvedEnd = max(fadeStart, fadeEnd)
+
+        guard distanceProgress > resolvedStart else {
+            return CGFloat(clampedCenterOpacity)
+        }
+
+        guard distanceProgress < resolvedEnd else {
+            return CGFloat(clampedEdgeOpacity)
+        }
+
+        let denominator = max(resolvedEnd - resolvedStart, .leastNonzeroMagnitude)
+        let fadeProgress = (distanceProgress - resolvedStart) / denominator
+        let easedProgress = fadeProgress * fadeProgress
         let opacity = clampedCenterOpacity
             + ((clampedEdgeOpacity - clampedCenterOpacity) * easedProgress)
         return CGFloat(opacity)
@@ -435,21 +526,26 @@ struct WheelPickerView<Label: View>: View {
     @ViewBuilder
     private func tickView(_ value: Int, size: CGSize, geometry: WheelArcGeometry) -> some View {
         let tickIndex = displayValues.firstIndex(of: value) ?? 0
-        let isLargeTick = (tickIndex % max(config.largeTickFrequency, 1)) == 0
-        let tickColor = config.tickColor(for: value, within: values)
-        let tickLength = geometry.tickLength(isLargeTick: isLargeTick)
+        let tickTier = config.tickTier(for: tickIndex)
+        let tickColor = config.tickColor(for: tickTier, value: value, within: values)
+        let tickLength = geometry.tickLength(tier: tickTier)
+        let tickOffset = geometry.tickOffset(tier: tickTier)
 
         GeometryReader { proxy in
             let frame = proxy.frame(in: .named(wheelPickerViewportCoordinateSpace))
             let relativeX = frame.midX - (size.width / 2)
             let vector = geometry.outwardUnitVector(forRelativeX: relativeX)
             let arcPoint = geometry.pointOnArc(
-                relativeX: relativeX, outwardOffset: geometry.tickOffset(isLargeTick: isLargeTick))
+                relativeX: relativeX,
+                outwardOffset: tickOffset
+            )
             let visibilityOpacity = geometry.tickOpacity(forRelativeX: relativeX)
             let viewportOpacity = geometry.tickViewportOpacity(
                 forRelativeX: relativeX,
                 centerOpacity: config.tickCenterOpacity,
-                edgeOpacity: config.tickEdgeOpacity
+                edgeOpacity: config.tickEdgeOpacity,
+                fadeStartProgress: config.tickFadeStartProgress,
+                fadeEndProgress: config.tickFadeEndProgress
             )
 
             Group {
@@ -474,7 +570,7 @@ struct WheelPickerView<Label: View>: View {
             .rotationEffect(geometry.tickRotation(forRelativeX: relativeX))
             .position(
                 x: (proxy.size.width / 2)
-                    + (vector.dx * geometry.tickOffset(isLargeTick: isLargeTick)),
+                    + (vector.dx * tickOffset),
                 y: arcPoint.y
             )
             .opacity(visibilityOpacity * viewportOpacity)
